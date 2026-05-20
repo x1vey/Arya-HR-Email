@@ -1,4 +1,4 @@
-# Arya — HR Email Builder POC
+# Arya — HR Email Builder Poc
 
 Proof of concept for two core ideas:
 
