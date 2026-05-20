@@ -5,7 +5,7 @@ export default function HomePage() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <div className="space-y-6">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand">
             Arya — POC
           </p>
           <h1 className="text-4xl font-bold text-ink">HR Email Builder</h1>
@@ -53,12 +53,20 @@ export default function HomePage() {
           </ul>
         </div>
 
-        <Link
-          href="/editor"
-          className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-3 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          Open the editor →
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/editor"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-gradient px-5 py-3 text-sm font-semibold text-white hover:opacity-90"
+          >
+            Open the editor →
+          </Link>
+          <Link
+            href="/automations"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-ink hover:border-brand/50"
+          >
+            Build an automation →
+          </Link>
+        </div>
       </div>
     </main>
   );

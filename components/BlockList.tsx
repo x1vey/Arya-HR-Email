@@ -50,8 +50,11 @@ export function BlockList({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted px-2">
-        Blocks ({blocks.length})
+      <div className="px-1">
+        <h2 className="text-sm font-semibold text-ink">Layers</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          {blocks.length} blocks · drag to reorder, click to edit.
+        </p>
       </div>
       <DndContext
         sensors={sensors}
@@ -72,9 +75,6 @@ export function BlockList({
           </div>
         </SortableContext>
       </DndContext>
-      <p className="text-xs text-muted px-2 mt-3 leading-relaxed">
-        Drag to reorder. Click a block to edit its properties.
-      </p>
     </div>
   );
 }
@@ -103,9 +103,9 @@ function SortableBlockItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-2 rounded-md border bg-white px-2 py-2 text-sm transition ${
+      className={`group flex items-center gap-2 rounded-lg border bg-white px-2 py-2 text-sm transition ${
         isSelected
-          ? "border-blue-500 ring-2 ring-blue-100"
+          ? "border-brand ring-2 ring-brand/20"
           : "border-slate-200 hover:border-slate-300"
       }`}
     >

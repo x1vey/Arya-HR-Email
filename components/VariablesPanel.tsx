@@ -17,9 +17,7 @@ export function VariablesPanel({ variables, values, onChange }: VariablesPanelPr
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Sample data
-        </div>
+        <h2 className="text-sm font-semibold text-ink">Data</h2>
         <p className="text-xs text-muted mt-1 leading-relaxed">
           Stand-in for a row from the connected data source. In production
           these get filled per recipient.
@@ -34,7 +32,7 @@ export function VariablesPanel({ variables, values, onChange }: VariablesPanelPr
             type="text"
             value={values[v.key] ?? ""}
             onChange={(e) => onChange(v.key, e.target.value)}
-            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
           />
         </label>
       ))}

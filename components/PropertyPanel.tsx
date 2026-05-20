@@ -10,8 +10,15 @@ interface PropertyPanelProps {
 export function PropertyPanel({ block, onChange }: PropertyPanelProps) {
   if (!block) {
     return (
-      <div className="text-sm text-muted leading-relaxed">
-        Select a block on the left to edit its properties.
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-light text-brand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-6 w-6">
+            <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+        </div>
+        <p className="text-sm leading-relaxed text-muted">
+          Select a block on the canvas to edit its properties.
+        </p>
       </div>
     );
   }
@@ -19,7 +26,7 @@ export function PropertyPanel({ block, onChange }: PropertyPanelProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">
+        <div className="text-xs font-semibold uppercase tracking-wide text-brand">
           {block.type}
         </div>
         <h3 className="text-base font-semibold text-ink">{block.label}</h3>
@@ -55,7 +62,7 @@ function PropertyInput({
   onChange: (v: string) => void;
 }) {
   const baseInputCls =
-    "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100";
+    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
   return (
     <label className="flex flex-col gap-1">
@@ -130,9 +137,9 @@ function PropertyInput({
             <button
               key={opt}
               onClick={() => onChange(opt)}
-              className={`flex-1 rounded-md border px-3 py-2 text-sm capitalize transition ${
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm capitalize transition ${
                 value === opt
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  ? "border-brand bg-brand-light text-brand-dark"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
               }`}
             >
