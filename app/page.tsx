@@ -27,11 +27,20 @@ export default function HomePage() {
               the same block-editing model.
             </li>
             <li>
-              <strong>Canva-style editor</strong>: start from scratch or a template,
-              hover any section for a move/duplicate/delete toolbar, double-click text to
-              edit in place (merge tags preserved), drag elements and layout presets onto
-              the canvas, plus undo/redo and keyboard shortcuts. Save templates to
-              localStorage for reuse.
+              <strong>AI email generation</strong>: describe the email you want in plain
+              English and Gemini builds a fully editable template — wrapper, blocks, merge
+              tags — optimized for the builder. Click suggestions or write your own prompt.
+            </li>
+            <li>
+              <strong>Import HTML</strong>: paste an existing email and the AI reverse-engineers
+              it into editable blocks — preserving the visual design while making every section
+              customizable.
+            </li>
+            <li>
+              <strong>Canva-style editor</strong>: start from scratch, pick a template, generate
+              with AI, or import HTML. Email settings (subject, from, reply-to, unsubscribe) in
+              the right panel. Real-time deliverability scoring catches spam trigger words, ALL
+              CAPS, missing unsubscribe, and more. Plain text view alongside HTML.
             </li>
             <li>
               <strong>No-code workflows</strong>: a dashboard to create and manage multiple
@@ -56,7 +65,7 @@ export default function HomePage() {
               and cron to drive it in production)
             </li>
             <li>Auth, multi-tenant workspaces, billing</li>
-            <li>Automated HTML→block parser (currently a manual step)</li>
+            <li>Sending domain verification + DKIM/SPF setup wizard</li>
           </ul>
         </div>
 
