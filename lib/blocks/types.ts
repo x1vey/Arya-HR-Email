@@ -52,6 +52,24 @@ export interface VariableDef {
   required?: boolean;
 }
 
+export interface EmailSettings {
+  subject: string;
+  preheader: string;
+  from_name: string;
+  from_email: string;
+  reply_to: string;
+  unsubscribe_url: string;
+}
+
+export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
+  subject: "",
+  preheader: "",
+  from_name: "",
+  from_email: "",
+  reply_to: "",
+  unsubscribe_url: "",
+};
+
 export interface Template {
   id: string;
   name: string;
@@ -63,4 +81,6 @@ export interface Template {
   variables: VariableDef[];
   /** Ordered list of blocks */
   blocks: Block[];
+  /** Email delivery settings — subject, from, reply-to, unsubscribe */
+  settings?: EmailSettings;
 }

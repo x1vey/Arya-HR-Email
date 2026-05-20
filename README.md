@@ -25,13 +25,18 @@ npm run automate     # run the automation engine demo in the terminal
   - `cart-abandonment.ts` — modern card design with faux Mac chrome (CSS custom properties, flexbox — modern email clients only).
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
 - **Canva-style email editor** at `/editor`:
-  - Left icon rail with two panels — **Templates** (visual gallery + **Start from scratch** blank canvas), **Elements** (layouts + blocks); merge-tag editing and **Save template** live in the right property panel
+  - Left icon rail with two panels — **Templates** (visual gallery + **Generate with AI** + **Start from scratch** blank canvas), **Elements** (layouts + blocks); merge-tag editing and **Save template** live in the right property panel
+  - **AI email generation** — describe the email you want in plain English, Gemini builds a fully editable block-tree template (wrapper + blocks + variables) optimized for the builder. Prompt suggestions and Ctrl+Enter to generate. API key stored in browser or via `GEMINI_API_KEY` env var
   - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas** (heading / text / button / image / callout / divider / spacer); a drop indicator shows where it lands. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
   - **Hover any section** for a Canva-style action toolbar (move / duplicate / delete) that follows the cursor; clicking selects, and the toolbar stays on the selected block
   - **Double-click-to-edit text in place** — inline editing shows the raw value so merge tags like `{{employee.first_name}}` are preserved instead of baked in
   - **Keyboard shortcuts + undo/redo**: ⌫ delete, ⌘/Ctrl+D duplicate, ⌘/Ctrl+Z / ⌘⇧Z undo-redo, ↑/↓ move, ⌘/Ctrl+C·V copy-paste, Esc deselect (shortcuts work even when focus is in the preview iframe, via key forwarding)
+  - **Import HTML** — paste an existing HTML email and AI converts it into an editable block tree, preserving the visual design
+  - **Email settings** in the right panel — subject line, preheader, from name/email, reply-to, unsubscribe URL. Saved with the template
+  - **Deliverability score** — real-time spam-word scanner checks all text, punctuation, caps, text-to-image ratio, missing unsubscribe, etc. Shows a 0–100 score with per-issue warnings in the property panel and a badge in the header
+  - **Plain text view** — auto-generated text/plain version alongside View HTML, with copy button
   - Type-aware property inputs (text / longtext / color / image / link / alignment)
-  - "View HTML" modal — what gets handed to the SMTP transport
+  - "View HTML" / "Plain text" modals with copy-to-clipboard
   - "Send test" — POSTs to a stub API route that simulates Gmail Workspace quota tracking
 - **No-code workflow builder** at `/automations`:
   - **Automations dashboard** — create, open, duplicate, and delete multiple workflows; saved to `localStorage` so they persist across reloads (no backend yet)
@@ -55,14 +60,15 @@ app/
   editor/page.tsx       editor entry — renders <BlockEditor/>
   automations/page.tsx  automations entry — renders <AutomationsApp/>
   api/send-test/        mock send endpoint (logs + fake quota)
+  api/generate-email/   Gemini-powered email generation endpoint
 components/
   BlockEditor.tsx       main editor container, holds template state
-  BlockList.tsx         Layers panel — drag-sortable block list
+  AiGenerateModal.tsx   AI prompt modal — describe email, get a template
+  ImportHtmlModal.tsx   Paste HTML → AI converts to editable blocks
   ElementsPanel.tsx     Elements panel — click-to-add block library
-  TemplateGallery.tsx   Templates panel — visual template picker
+  TemplateGallery.tsx   Templates panel — visual template picker + AI entry
   PreviewPane.tsx       center — iframe preview, click-to-select + canvas toolbar
   PropertyPanel.tsx     right — prop inputs for the selected block
-  VariablesPanel.tsx    Data panel — sample data row editor
   automation/
     AutomationsApp.tsx  container — switches between dashboard and builder
     AutomationsList.tsx dashboard of saved automations (create/open/dup/delete)
@@ -75,6 +81,11 @@ lib/
     render.ts           renderTemplate / renderBlock / cloneTemplate
     substitute.ts       {{path.to.value}} placeholder replacement
     palette.ts          insertable elements + layout presets (Elements panel)
+  ai/
+    generate-email.ts   Gemini system prompt + Template generation logic
+  email/
+    spam-checker.ts     Deliverability scanner — trigger words, caps, structure
+    plain-text.ts       HTML → plain-text converter for multipart emails
   automation/
     types.ts            Trigger, Step, Pipeline, Enrollment, duration helpers
     engine.ts           Clock + AutomationEngine (triggers, scheduler)

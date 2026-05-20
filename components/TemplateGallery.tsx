@@ -7,6 +7,7 @@ interface TemplateGalleryProps {
   templates: Template[];
   activeId: string;
   onSwitch: (id: string) => void;
+  onOpenAi?: () => void;
 }
 
 /**
@@ -14,7 +15,7 @@ interface TemplateGalleryProps {
  * column of preview cards, each showing a miniature of the email built
  * from the template's own blocks.
  */
-export function TemplateGallery({ templates, activeId, onSwitch }: TemplateGalleryProps) {
+export function TemplateGallery({ templates, activeId, onSwitch, onOpenAi }: TemplateGalleryProps) {
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -23,6 +24,24 @@ export function TemplateGallery({ templates, activeId, onSwitch }: TemplateGalle
           Pick a starting point. Switching replaces the current design.
         </p>
       </div>
+
+      {/* Generate with AI */}
+      {onOpenAi && (
+        <button
+          onClick={onOpenAi}
+          className="flex items-center gap-3 rounded-xl border-2 border-dashed border-brand/40 bg-brand-light/30 p-3 text-left transition hover:border-brand hover:bg-brand-light/50"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-gradient">
+            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-white">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span>
+            <span className="block text-sm font-semibold text-ink">Generate with AI</span>
+            <span className="block text-[11px] text-muted">Describe your email, get a ready-to-edit template</span>
+          </span>
+        </button>
+      )}
 
       {/* Start from scratch */}
       <button
