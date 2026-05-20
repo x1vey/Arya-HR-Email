@@ -319,6 +319,13 @@ function decorateForSelection(
     document.addEventListener('keydown', onKeyDown);
   }
 
+  // Kill ALL link navigation in the editor canvas — clicks should select
+  // blocks, never follow hrefs. Capture phase fires before any handler.
+  document.addEventListener('click', function(e) {
+    var a = e.target.closest ? e.target.closest('a[href]') : null;
+    if (a && !a.closest('#__arya_toolbar')) { e.preventDefault(); }
+  }, true);
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', tag);
   } else {

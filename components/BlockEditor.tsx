@@ -2,18 +2,21 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import type { Block, Template, VariableDef } from "@/lib/blocks/types";
+import type { Block, Template, VariableDef, EmailSettings } from "@/lib/blocks/types";
+import { DEFAULT_EMAIL_SETTINGS } from "@/lib/blocks/types";
 import { TEMPLATE_LIBRARY, getTemplateById } from "@/lib/templates";
 import { renderTemplate, cloneTemplate } from "@/lib/blocks/render";
 import type { PaletteItem, LayoutPreset } from "@/lib/blocks/palette";
-import { BlockList } from "./BlockList";
+import { checkSpam, type SpamResult } from "@/lib/email/spam-checker";
+import { htmlToPlainText } from "@/lib/email/plain-text";
 import { PropertyPanel } from "./PropertyPanel";
 import { PreviewPane, type BlockAction, type CanvasKey } from "./PreviewPane";
-import { VariablesPanel } from "./VariablesPanel";
 import { ElementsPanel } from "./ElementsPanel";
 import { TemplateGallery } from "./TemplateGallery";
+import { AiGenerateModal } from "./AiGenerateModal";
+import { ImportHtmlModal } from "./ImportHtmlModal";
 
-type Tab = "templates" | "elements" | "layers" | "data";
+type Tab = "templates" | "elements";
 
 // ── template history (undo/redo) ──────────────────────────────────────────────
 
@@ -21,7 +24,6 @@ interface HistoryState {
   present: Template;
   past: Template[];
   future: Template[];
-  /** consecutive mutations with the same key collapse into one undo step */
   coalesceKey: string | null;
 }
 
@@ -43,28 +45,18 @@ function historyReducer(state: HistoryState, action: HistoryAction): HistoryStat
         present: next,
         past: coalesce ? state.past : [...state.past, state.present].slice(-100),
         future: [],
-        coalesceKey: action.coalesceKey ?? null
+        coalesceKey: action.coalesceKey ?? null,
       };
     }
     case "undo": {
       if (state.past.length === 0) return state;
       const prev = state.past[state.past.length - 1];
-      return {
-        present: prev,
-        past: state.past.slice(0, -1),
-        future: [state.present, ...state.future],
-        coalesceKey: null
-      };
+      return { present: prev, past: state.past.slice(0, -1), future: [state.present, ...state.future], coalesceKey: null };
     }
     case "redo": {
       if (state.future.length === 0) return state;
       const nxt = state.future[0];
-      return {
-        present: nxt,
-        past: [...state.past, state.present],
-        future: state.future.slice(1),
-        coalesceKey: null
-      };
+      return { present: nxt, past: [...state.past, state.present], future: state.future.slice(1), coalesceKey: null };
     }
     default:
       return state;
@@ -76,7 +68,7 @@ export function BlockEditor() {
     present: cloneTemplate(TEMPLATE_LIBRARY[0]),
     past: [],
     future: [],
-    coalesceKey: null
+    coalesceKey: null,
   }));
   const template = history.present;
 
@@ -87,11 +79,15 @@ export function BlockEditor() {
     () => TEMPLATE_LIBRARY[0].blocks[0]?.id ?? null
   );
   const [showFinalHtml, setShowFinalHtml] = useState(false);
+  const [showPlainText, setShowPlainText] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("elements");
   const [draggingItem, setDraggingItem] = useState<PaletteItem | null>(null);
   const [clipboard, setClipboard] = useState<Block | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>({ ...DEFAULT_EMAIL_SETTINGS });
 
-  // Refs so the global key handler reads fresh values without re-subscribing.
   const selectedRef = useRef(selectedBlockId);
   const presentRef = useRef(template);
   const clipboardRef = useRef<Block | null>(null);
@@ -111,6 +107,25 @@ export function BlockEditor() {
     return scope;
   }, [variableValues]);
 
+  const renderedHtml = useMemo(
+    () => renderTemplate(template, variableScope),
+    [template, variableScope]
+  );
+
+  // ── spam checker (debounced) ──
+  const [spamResult, setSpamResult] = useState<SpamResult | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const result = checkSpam(renderedHtml, {
+        subject: emailSettings.subject,
+        hasUnsubscribe: !!emailSettings.unsubscribe_url,
+        hasPlainText: false,
+      });
+      setSpamResult(result);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [renderedHtml, emailSettings.subject, emailSettings.unsubscribe_url]);
+
   const mutate = useCallback(
     (fn: (t: Template) => Template, coalesceKey?: string) => dispatch({ type: "mutate", fn, coalesceKey }),
     []
@@ -118,13 +133,30 @@ export function BlockEditor() {
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   const switchTemplate = useCallback((id: string) => {
     const t = getTemplateById(id);
     if (!t) return;
     dispatch({ type: "reset", template: cloneTemplate(t) });
     setVariableValues(buildInitialVariables(t.variables));
     setSelectedBlockId(t.blocks[0]?.id ?? null);
+    if (t.settings) setEmailSettings({ ...t.settings });
   }, []);
+
+  const loadAiTemplate = useCallback(
+    (t: Template) => {
+      dispatch({ type: "reset", template: cloneTemplate(t) });
+      setVariableValues(buildInitialVariables(t.variables));
+      setSelectedBlockId(t.blocks[0]?.id ?? null);
+      if (t.settings) setEmailSettings({ ...t.settings });
+      showToast(`Loaded "${t.name}"`);
+    },
+    [showToast]
+  );
 
   const reorderBlocks = useCallback(
     (newBlocks: Block[]) => mutate((t) => ({ ...t, blocks: newBlocks })),
@@ -133,13 +165,18 @@ export function BlockEditor() {
 
   const deleteBlock = useCallback(
     (id: string) => {
+      const blk = presentRef.current.blocks.find((b) => b.id === id);
+      if (blk?.locked) {
+        showToast("This block is locked and can't be deleted");
+        return;
+      }
       mutate((t) => ({ ...t, blocks: t.blocks.filter((b) => b.id !== id) }));
       setSelectedBlockId((cur) => (cur === id ? null : cur));
+      showToast("Block deleted");
     },
-    [mutate]
+    [mutate, showToast]
   );
 
-  /** Insert a fresh palette block at an explicit index. */
   const insertBlockAt = useCallback(
     (item: PaletteItem, index: number) => {
       const nb = item.make();
@@ -153,8 +190,6 @@ export function BlockEditor() {
     [mutate]
   );
 
-  /** Where a click-to-add should land: after the selection, else before a
-   *  trailing locked footer, else at the end. */
   const clickInsertIndex = useCallback(() => {
     const blocks = presentRef.current.blocks;
     const selIdx = blocks.findIndex((b) => b.id === selectedRef.current);
@@ -163,13 +198,11 @@ export function BlockEditor() {
     return blocks.length;
   }, []);
 
-  /** Click-to-add a single element. */
   const addBlock = useCallback(
     (item: PaletteItem) => insertBlockAt(item, clickInsertIndex()),
     [insertBlockAt, clickInsertIndex]
   );
 
-  /** Click-to-add a multi-block layout, inserted together. */
   const addLayout = useCallback(
     (preset: LayoutPreset) => {
       const newBlocks = preset.make();
@@ -194,7 +227,7 @@ export function BlockEditor() {
         const copy: Block = {
           ...(JSON.parse(JSON.stringify(t.blocks[idx])) as Block),
           id: (newId = freshId(t.blocks[idx].type)),
-          locked: false
+          locked: false,
         };
         const blocks = [...t.blocks];
         blocks.splice(idx + 1, 0, copy);
@@ -225,7 +258,7 @@ export function BlockEditor() {
     const copy: Block = {
       ...(JSON.parse(JSON.stringify(src)) as Block),
       id: freshId(src.type),
-      locked: false
+      locked: false,
     };
     mutate((t) => {
       const blocks = [...t.blocks];
@@ -253,7 +286,7 @@ export function BlockEditor() {
           ...t,
           blocks: t.blocks.map((b) =>
             b.id === blockId ? { ...b, props: { ...b.props, [propKey]: value } } : b
-          )
+          ),
         }),
         `prop:${blockId}:${propKey}`
       );
@@ -265,55 +298,30 @@ export function BlockEditor() {
     setVariableValues((cur) => ({ ...cur, [key]: value }));
   }, []);
 
-  // ── keyboard shortcuts ──────────────────────────────────────────────────────
+  const updateSetting = useCallback((key: keyof EmailSettings, value: string) => {
+    setEmailSettings((cur) => ({ ...cur, [key]: value }));
+  }, []);
 
-  /** Run a shortcut. Returns true if it was handled. Shared by the window
-   *  listener and keys forwarded from inside the preview iframe. */
+  // ── keyboard shortcuts ──
   const runShortcut = useCallback(
     (k: CanvasKey): boolean => {
       const mod = k.metaKey || k.ctrlKey;
       const key = k.key.toLowerCase();
-      if (mod && key === "z") {
-        k.shiftKey ? redo() : undo();
-        return true;
-      }
-      if (mod && key === "y") {
-        redo();
-        return true;
-      }
+      if (mod && key === "z") { k.shiftKey ? redo() : undo(); return true; }
+      if (mod && key === "y") { redo(); return true; }
       const id = selectedRef.current;
       const blk = id ? presentRef.current.blocks.find((b) => b.id === id) ?? null : null;
-      if (mod && key === "d") {
-        if (id) duplicateBlock(id);
-        return true;
-      }
-      if (mod && key === "c") {
-        if (blk) setClipboard(blk);
-        return true;
-      }
-      if (mod && key === "v") {
-        pasteAfterSelected();
-        return true;
-      }
+      if (mod && key === "d") { if (id) duplicateBlock(id); return true; }
+      if (mod && key === "c") { if (blk) setClipboard(blk); return true; }
+      if (mod && key === "v") { pasteAfterSelected(); return true; }
       if (k.key === "Delete" || k.key === "Backspace") {
         if (!id) return false;
         if (!blk?.locked) deleteBlock(id);
         return true;
       }
-      if (k.key === "ArrowUp") {
-        if (!id) return false;
-        moveBlock(id, "up");
-        return true;
-      }
-      if (k.key === "ArrowDown") {
-        if (!id) return false;
-        moveBlock(id, "down");
-        return true;
-      }
-      if (k.key === "Escape") {
-        setSelectedBlockId(null);
-        return true;
-      }
+      if (k.key === "ArrowUp") { if (!id) return false; moveBlock(id, "up"); return true; }
+      if (k.key === "ArrowDown") { if (!id) return false; moveBlock(id, "down"); return true; }
+      if (k.key === "Escape") { setSelectedBlockId(null); return true; }
       return false;
     },
     [undo, redo, duplicateBlock, deleteBlock, moveBlock, pasteAfterSelected]
@@ -322,12 +330,7 @@ export function BlockEditor() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)
-      ) {
-        return; // let form fields keep their own typing/undo
-      }
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (runShortcut({ key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey })) {
         e.preventDefault();
       }
@@ -336,8 +339,7 @@ export function BlockEditor() {
     return () => window.removeEventListener("keydown", onKey);
   }, [runShortcut]);
 
-  // ── drag-to-add from the Elements panel ─────────────────────────────────────
-
+  // ── drag-to-add ──
   const onPaletteDrop = useCallback(
     (targetId: string | null, position: "before" | "after") => {
       const item = draggingRef.current;
@@ -357,36 +359,35 @@ export function BlockEditor() {
     [insertBlockAt]
   );
 
-  const startDrag = useCallback((item: PaletteItem) => {
-    draggingRef.current = item;
-    setDraggingItem(item);
-  }, []);
-  const endDrag = useCallback(() => {
-    draggingRef.current = null;
-    setDraggingItem(null);
-  }, []);
+  const startDrag = useCallback((item: PaletteItem) => { draggingRef.current = item; setDraggingItem(item); }, []);
+  const endDrag = useCallback(() => { draggingRef.current = null; setDraggingItem(null); }, []);
 
   const handleMockSend = async () => {
-    const finalHtml = renderTemplate(template, variableScope);
     const res = await fetch("/api/send-test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         template_id: template.id,
-        subject: `Preview: ${template.name}`,
+        subject: emailSettings.subject || `Preview: ${template.name}`,
         to: "demo@example.com",
-        html: finalHtml
-      })
+        html: renderedHtml,
+      }),
     });
     const data = await res.json();
-    alert(
-      `Mock send response:\n\n` +
-        `provider: ${data.provider}\n` +
-        `message_id: ${data.message_id}\n` +
-        `daily_quota_remaining: ${data.daily_quota_remaining}\n\n` +
-        `(Final HTML logged to server console.)`
-    );
+    showToast(`Test sent — quota: ${data.daily_quota_remaining} remaining`);
   };
+
+  const saveTemplate = useCallback(
+    (name: string) => {
+      const saved = { ...template, name, id: `saved_${Date.now()}`, settings: emailSettings };
+      const key = "arya_saved_templates";
+      const existing: Template[] = JSON.parse(localStorage.getItem(key) ?? "[]");
+      existing.push(saved);
+      localStorage.setItem(key, JSON.stringify(existing));
+      showToast(`Saved "${name}"`);
+    },
+    [template, emailSettings, showToast]
+  );
 
   return (
     <div className="flex h-screen flex-col bg-canvas">
@@ -403,22 +404,48 @@ export function BlockEditor() {
           <span className="ml-2 rounded-full bg-brand-light px-2 py-0.5 text-[10px] font-semibold text-brand-dark">
             {template.name}
           </span>
+          {/* Deliverability badge */}
+          {spamResult && (
+            <span
+              className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                spamResult.rating === "good"
+                  ? "bg-green-50 text-green-700"
+                  : spamResult.rating === "warning"
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-red-50 text-red-700"
+              }`}
+              title={`Deliverability: ${100 - spamResult.score}/100 — ${spamResult.warnings.length} issues`}
+            >
+              {spamResult.rating === "good" ? "✓ " : spamResult.rating === "warning" ? "⚠ " : "✕ "}
+              {100 - spamResult.score}/100
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="mr-1 flex items-center gap-1">
-            <HeaderIcon label="Undo (⌘Z)" disabled={history.past.length === 0} onClick={undo}>
-              ↶
-            </HeaderIcon>
-            <HeaderIcon label="Redo (⌘⇧Z)" disabled={history.future.length === 0} onClick={redo}>
-              ↷
-            </HeaderIcon>
+            <HeaderIcon label="Undo (⌘Z)" disabled={history.past.length === 0} onClick={undo}>↶</HeaderIcon>
+            <HeaderIcon label="Redo (⌘⇧Z)" disabled={history.future.length === 0} onClick={redo}>↷</HeaderIcon>
           </div>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
+            title="Import HTML email"
+          >
+            Import
+          </button>
           <Link
             href="/automations"
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
           >
-            Automations →
+            Automations
           </Link>
+          <button
+            onClick={() => setShowPlainText(true)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300"
+            title="Plain text version"
+          >
+            Plain text
+          </button>
           <button
             onClick={() => setShowFinalHtml(true)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300"
@@ -434,14 +461,18 @@ export function BlockEditor() {
         </div>
       </header>
 
-      {/* Main layout: icon rail · panel · canvas · properties */}
+      {/* Main layout */}
       <div className="flex flex-1 overflow-hidden">
         <IconRail active={activeTab} onChange={setActiveTab} />
 
-        {/* Active tab panel */}
         <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4">
           {activeTab === "templates" && (
-            <TemplateGallery templates={TEMPLATE_LIBRARY} activeId={template.id} onSwitch={switchTemplate} />
+            <TemplateGallery
+              templates={TEMPLATE_LIBRARY}
+              activeId={template.id}
+              onSwitch={switchTemplate}
+              onOpenAi={() => setShowAiModal(true)}
+            />
           )}
           {activeTab === "elements" && (
             <ElementsPanel
@@ -451,25 +482,8 @@ export function BlockEditor() {
               onDragEnd={endDrag}
             />
           )}
-          {activeTab === "layers" && (
-            <BlockList
-              blocks={template.blocks}
-              selectedId={selectedBlockId}
-              onSelect={setSelectedBlockId}
-              onReorder={reorderBlocks}
-              onDelete={deleteBlock}
-            />
-          )}
-          {activeTab === "data" && (
-            <VariablesPanel
-              variables={template.variables}
-              values={variableValues}
-              onChange={updateVariable}
-            />
-          )}
         </aside>
 
-        {/* Center: live canvas */}
         <main className="flex-1 overflow-hidden">
           <PreviewPane
             template={template}
@@ -484,33 +498,40 @@ export function BlockEditor() {
           />
         </main>
 
-        {/* Right: property panel */}
-        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4">
-          <PropertyPanel block={selectedBlock} onChange={updateProp} />
+        <aside className="w-[320px] shrink-0 border-l border-slate-200 bg-white">
+          <PropertyPanel
+            block={selectedBlock}
+            onChange={updateProp}
+            variables={template.variables}
+            variableValues={variableValues}
+            onVariableChange={updateVariable}
+            onSaveTemplate={saveTemplate}
+            templateName={template.name}
+            emailSettings={emailSettings}
+            onSettingsChange={updateSetting}
+            spamResult={spamResult}
+          />
         </aside>
       </div>
 
-      {showFinalHtml && (
-        <FinalHtmlModal
-          html={renderTemplate(template, variableScope)}
-          onClose={() => setShowFinalHtml(false)}
-        />
+      <AiGenerateModal open={showAiModal} onClose={() => setShowAiModal(false)} onGenerated={loadAiTemplate} />
+      <ImportHtmlModal open={showImportModal} onClose={() => setShowImportModal(false)} onImported={loadAiTemplate} />
+
+      {showFinalHtml && <CodeModal title="Final HTML" subtitle="What gets handed to the SMTP transport." code={renderedHtml} onClose={() => setShowFinalHtml(false)} />}
+      {showPlainText && <CodeModal title="Plain text version" subtitle="Improves deliverability. Include this as the text/plain MIME part." code={htmlToPlainText(renderedHtml)} onClose={() => setShowPlainText(false)} />}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-[fadeInUp_0.2s_ease-out] rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white shadow-float">
+          {toast}
+        </div>
       )}
     </div>
   );
 }
 
-function HeaderIcon({
-  children,
-  label,
-  onClick,
-  disabled
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+/* ── Header icon button ── */
+
+function HeaderIcon({ children, label, onClick, disabled }: { children: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       aria-label={label}
@@ -526,27 +547,19 @@ function HeaderIcon({
   );
 }
 
+/* ── Icon rail ── */
+
 const RAIL_TABS: { tab: Tab; label: string; icon: string }[] = [
   {
     tab: "templates",
     label: "Templates",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
   },
   {
     tab: "elements",
     label: "Elements",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><path d="M3 16l4 5 4-5z"/><rect x="13" y="14" width="8" height="7" rx="1.5"/></svg>`
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><path d="M3 16l4 5 4-5z"/><rect x="13" y="14" width="8" height="7" rx="1.5"/></svg>`,
   },
-  {
-    tab: "layers",
-    label: "Layers",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>`
-  },
-  {
-    tab: "data",
-    label: "Data",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>`
-  }
 ];
 
 function IconRail({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
@@ -571,32 +584,47 @@ function IconRail({ active, onChange }: { active: Tab; onChange: (t: Tab) => voi
   );
 }
 
-function FinalHtmlModal({ html, onClose }: { html: string; onClose: () => void }) {
+/* ── Code modal (HTML / Plain text) ── */
+
+function CodeModal({ title, subtitle, code, onClose }: { title: string; subtitle: string; code: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" onClick={onClose}>
-      <div
-        className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-xl2 bg-white shadow-float"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-xl2 bg-white shadow-float" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div>
-            <h3 className="font-semibold text-ink">Final HTML</h3>
-            <p className="text-xs text-muted">This is what gets handed to the SMTP transport.</p>
+            <h3 className="font-semibold text-ink">{title}</h3>
+            <p className="text-xs text-muted">{subtitle}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 transition hover:bg-slate-50"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+            <button onClick={onClose} className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">
+              Close
+            </button>
+          </div>
         </div>
-        <pre className="flex-1 overflow-auto bg-slate-50 p-4 text-xs leading-relaxed text-slate-800">
-          {html}
+        <pre className="flex-1 overflow-auto bg-slate-50 p-4 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+          {code}
         </pre>
       </div>
     </div>
   );
 }
+
+/* ── Utilities ── */
 
 function buildInitialVariables(vars: VariableDef[]): Record<string, string> {
   const out: Record<string, string> = {};
