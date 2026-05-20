@@ -102,25 +102,23 @@ export async function generateEmailTemplate(
     },
   });
 
-  const result = await model.generateContent([
-    { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-    {
-      role: "model",
-      parts: [
-        {
-          text: "Understood. I will generate email templates as valid JSON matching the Template interface, with email-safe HTML, proper block structure, and editable props. Send me a description of the email you want.",
-        },
-      ],
-    },
-    {
-      role: "user",
-      parts: [
-        {
-          text: `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`,
-        },
-      ],
-    },
-  ] as never);
+  const chat = model.startChat({
+    history: [
+      { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+      {
+        role: "model",
+        parts: [
+          {
+            text: "Understood. I will generate email templates as valid JSON matching the Template interface, with email-safe HTML, proper block structure, and editable props. Send me a description of the email you want.",
+          },
+        ],
+      },
+    ],
+  });
+
+  const result = await chat.sendMessage(
+    `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`
+  );
 
   const text = result.response.text();
 
