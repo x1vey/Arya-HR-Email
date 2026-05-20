@@ -30,7 +30,8 @@ export default function HomePage() {
               <strong>Canva-style editor</strong>: start from scratch or a template,
               hover any section for a move/duplicate/delete toolbar, double-click text to
               edit in place (merge tags preserved), drag elements and layout presets onto
-              the canvas, plus undo/redo and keyboard shortcuts.
+              the canvas, plus undo/redo and keyboard shortcuts. Save templates to
+              localStorage for reuse.
             </li>
             <li>
               <strong>No-code workflows</strong>: a dashboard to create and manage multiple
