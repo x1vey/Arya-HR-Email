@@ -32,6 +32,7 @@ npm run automate     # run the automation engine demo in the terminal
   - "View HTML" modal — what gets handed to the SMTP transport
   - "Send test" — POSTs to a stub API route that simulates Gmail Workspace quota tracking
 - **No-code workflow builder** at `/automations`:
+  - **Automations dashboard** — create, open, duplicate, and delete multiple workflows; saved to `localStorage` so they persist across reloads (no backend yet)
   - Vertical node canvas — a trigger plus wait / send-email steps, with inline "+" insert and click-to-edit
   - Friendly trigger presets (employee hired, birthday, work anniversary, manual) with "N days before" timing
   - **Test run** — simulates one sample contact through the flow on a virtual clock and shows the resulting timeline
@@ -50,7 +51,7 @@ npm run automate     # run the automation engine demo in the terminal
 app/
   page.tsx              landing page
   editor/page.tsx       editor entry — renders <BlockEditor/>
-  automations/page.tsx  workflow builder entry — renders <WorkflowBuilder/>
+  automations/page.tsx  automations entry — renders <AutomationsApp/>
   api/send-test/        mock send endpoint (logs + fake quota)
 components/
   BlockEditor.tsx       main editor container, holds template state
@@ -61,7 +62,9 @@ components/
   PropertyPanel.tsx     right — prop inputs for the selected block
   VariablesPanel.tsx    Data panel — sample data row editor
   automation/
-    WorkflowBuilder.tsx node canvas + header + nav
+    AutomationsApp.tsx  container — switches between dashboard and builder
+    AutomationsList.tsx dashboard of saved automations (create/open/dup/delete)
+    WorkflowBuilder.tsx node canvas + header + nav (edits one automation)
     StepInspector.tsx   right-panel editors for trigger / wait / send_email
     TestRunModal.tsx    simulates a contact through the flow, shows timeline
 lib/
@@ -74,6 +77,7 @@ lib/
     types.ts            Trigger, Step, Pipeline, Enrollment, duration helpers
     engine.ts           Clock + AutomationEngine (triggers, scheduler)
     mailer.ts           Mailer interface + Console/Http/Collecting impls
+    store.ts            localStorage persistence + seed (multiple automations)
   templates/
     *.ts                15 reverse-engineered templates
     index.ts            TEMPLATE_LIBRARY registry
@@ -105,7 +109,7 @@ Once the library has ~20 templates this pattern can be partially automated with 
 | Per-identity quota tracking + token-bucket rate limiter | `lib/transports/quota.ts` |
 | Data-source connectors (Sheets, Postgres, HRIS) | `lib/connectors/` |
 | Workflow **persistence + production scheduler** | engine exists (`lib/automation/`); still need to store enrollments and drive `tick()` / `evaluateDateTriggers()` from cron (e.g. Inngest) |
-| Saving workflows + templates server-side | the builder serializes a `Pipeline`; needs Postgres + Drizzle + CRUD |
+| Saving workflows + templates server-side | automations persist client-side in `localStorage` (`lib/automation/store.ts`); needs Postgres + Drizzle + CRUD to be multi-device / multi-tenant |
 | Auth + multi-tenant workspaces | Clerk + Postgres + Drizzle |
 | Schema mapping UI (source field → template variable) | `app/mappings/` |
 

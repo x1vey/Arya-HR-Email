@@ -1,5 +1,5 @@
-import { WorkflowBuilder } from "@/components/automation/WorkflowBuilder";
+import { AutomationsApp } from "@/components/automation/AutomationsApp";
 
 export default function AutomationsPage() {
-  return <WorkflowBuilder />;
+  return <AutomationsApp />;
 }

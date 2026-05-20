@@ -4,20 +4,20 @@ import { useState } from "react";
 import Link from "next/link";
 import { TEMPLATE_LIBRARY, getTemplateById } from "@/lib/templates";
 import { days, formatDuration, type Step, type Trigger } from "@/lib/automation/types";
+import type { StoredAutomation } from "@/lib/automation/store";
 import { StepInspector, TRIGGER_PRESETS, type NodeSelection } from "./StepInspector";
 import { TestRunModal } from "./TestRunModal";
 
-const DEFAULT_TRIGGER: Trigger = { kind: "event", event: "employee_hired" };
-const DEFAULT_STEPS: Step[] = [
-  { type: "send_email", templateId: "tpl_onboarding_day1_v1", subject: "Welcome to {{company.name}}, {{employee.first_name}}!" },
-  { type: "wait", duration: days(3) },
-  { type: "send_email", templateId: "tpl_onboarding_day1_v1", subject: "{{employee.first_name}}, how is week 1 going?" }
-];
+interface WorkflowBuilderProps {
+  automation: StoredAutomation;
+  onBack: () => void;
+  onSave: (automation: StoredAutomation) => void;
+}
 
-export function WorkflowBuilder() {
-  const [name, setName] = useState("New-hire onboarding");
-  const [trigger, setTrigger] = useState<Trigger>(DEFAULT_TRIGGER);
-  const [steps, setSteps] = useState<Step[]>(DEFAULT_STEPS);
+export function WorkflowBuilder({ automation, onBack, onSave }: WorkflowBuilderProps) {
+  const [name, setName] = useState(automation.name);
+  const [trigger, setTrigger] = useState<Trigger>(automation.trigger);
+  const [steps, setSteps] = useState<Step[]>(automation.steps);
   const [selection, setSelection] = useState<NodeSelection | null>({ kind: "trigger" });
   const [addMenuAt, setAddMenuAt] = useState<number | null>(null);
   const [showTest, setShowTest] = useState(false);
@@ -57,8 +57,7 @@ export function WorkflowBuilder() {
   };
 
   const save = () => {
-    // No backend yet — serialize the workflow the engine would run.
-    console.log("Saved workflow:", JSON.stringify({ name, trigger, steps }, null, 2));
+    onSave({ ...automation, name, trigger, steps, updatedAt: Date.now() });
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1800);
   };
@@ -67,10 +66,14 @@ export function WorkflowBuilder() {
     <div className="flex h-screen flex-col bg-canvas">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-sm font-bold text-white">
-            A
-          </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onBack}
+            className="rounded-lg px-2 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
+          >
+            ← All automations
+          </button>
+          <span className="h-5 w-px bg-slate-200" />
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}

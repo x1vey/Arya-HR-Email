@@ -32,9 +32,10 @@ export default function HomePage() {
               move/duplicate/delete toolbar, and a type-aware property panel.
             </li>
             <li>
-              <strong>No-code workflows</strong>: a visual builder (trigger → wait → send)
-              backed by an engine with date/event triggers, a scheduler, and a pluggable
-              mailer. "Test run" fast-forwards waits to preview the whole sequence.
+              <strong>No-code workflows</strong>: a dashboard to create and manage multiple
+              automations, each a visual builder (trigger → wait → send) backed by an engine
+              with date/event triggers, a scheduler, and a pluggable mailer. "Test run"
+              fast-forwards waits to preview the whole sequence.
             </li>
             <li>
               <strong>Variable substitution</strong>: <code>{`{{employee.first_name}}`}</code>{" "}
