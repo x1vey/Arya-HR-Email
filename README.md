@@ -1,31 +1,44 @@
 # Arya — HR Email Builder POC
 
-Proof of concept for the core idea: **reverse-engineer hand-crafted HTML email templates into editable block trees**, then expose them in a drag-and-drop builder so HRs can customize without losing design integrity. Automation later fills in employee data per recipient.
+Proof of concept for two core ideas:
+
+1. **Reverse-engineer hand-crafted HTML email templates into editable block trees**, then expose them in a Canva-style builder so HRs can customize without losing design integrity.
+2. **Automate sends with no-code workflows** — a GoHighLevel-style pipeline of triggers, waits, and emails that fills in employee data per recipient.
 
 ## Run it
 
 ```bash
 npm install
-npm run dev
+npm run dev          # app at http://localhost:3000
+npm run automate     # run the automation engine demo in the terminal
 ```
 
-Open http://localhost:3000
+- `/editor` — the Canva-style email builder
+- `/automations` — the no-code workflow builder
 
 ## What's in this POC
 
-- **Five real templates** in `lib/templates/`, each hand-crafted as HTML then converted into a `Template` block tree:
+- **15 templates** in `lib/templates/`, each hand-crafted as HTML then converted into a `Template` block tree — five foundational designs plus ten HR "Ori" originals (announcement, policy update, all-hands, etc.). Highlights:
   - `newsletter.ts` — classic email-safe newsletter (FullSphere). All `<table>`-based, inline styles, dark footer.
   - `birthday.ts` — gradient hero, signature on tinted footer.
   - `onboarding-day1.ts` — clean professional design with a unique `checklist` block type.
   - `cart-abandonment.ts` — modern card design with faux Mac chrome (CSS custom properties, flexbox — modern email clients only).
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
-- **Block-aware editor** at `/editor` with:
-  - Drag-reorder via `@dnd-kit`
-  - Click-to-select (in either the left list or the live preview)
-  - Side-panel property editor with type-aware inputs (text / longtext / color / image / link / alignment)
-  - Sample variables panel (stands in for a connected data-source row)
-  - "View final HTML" modal — what gets handed to the SMTP transport
-  - "Send test (mock)" — POSTs to a stub API route that simulates Gmail Workspace quota tracking
+- **Canva-style email editor** at `/editor`:
+  - Left icon rail with four panels — **Templates** (visual gallery), **Elements** (insert blocks), **Layers** (drag-reorder via `@dnd-kit`), **Data** (sample variables)
+  - **Element library** (`lib/blocks/palette.ts`) — click to add heading / text / button / image / callout / divider / spacer blocks, each email-safe
+  - **Canvas with click-to-select** and a floating contextual toolbar (move / duplicate / delete) over the selected block
+  - Type-aware property inputs (text / longtext / color / image / link / alignment)
+  - "View HTML" modal — what gets handed to the SMTP transport
+  - "Send test" — POSTs to a stub API route that simulates Gmail Workspace quota tracking
+- **No-code workflow builder** at `/automations`:
+  - Vertical node canvas — a trigger plus wait / send-email steps, with inline "+" insert and click-to-edit
+  - Friendly trigger presets (employee hired, birthday, work anniversary, manual) with "N days before" timing
+  - **Test run** — simulates one sample contact through the flow on a virtual clock and shows the resulting timeline
+- **Automation engine** in `lib/automation/` (the builder serializes to this):
+  - `types.ts` — `Trigger` (event / date_field / manual), `Step` (wait / send_email), `Pipeline`, `Enrollment`, duration helpers
+  - `engine.ts` — pluggable `Clock` (`RealClock` for production, `VirtualClock` to fast-forward waits), enrollment + `tick()` / `runUntilIdle()` scheduler
+  - `mailer.ts` — `Mailer` boundary: `Console`, `Http` (reuses `/api/send-test`), `Collecting` (for the in-app Test run)
 - **Two-pass renderer** at `lib/blocks/render.ts`:
   1. Substitute each block's `props` into its `html_template`
   2. Substitute template-level variables (e.g., `{{employee.first_name}}`)
@@ -37,23 +50,35 @@ Open http://localhost:3000
 app/
   page.tsx              landing page
   editor/page.tsx       editor entry — renders <BlockEditor/>
+  automations/page.tsx  workflow builder entry — renders <WorkflowBuilder/>
   api/send-test/        mock send endpoint (logs + fake quota)
 components/
   BlockEditor.tsx       main editor container, holds template state
-  BlockList.tsx         left panel — drag-sortable block list
-  PreviewPane.tsx       center — iframe preview with click-to-select
+  BlockList.tsx         Layers panel — drag-sortable block list
+  ElementsPanel.tsx     Elements panel — click-to-add block library
+  TemplateGallery.tsx   Templates panel — visual template picker
+  PreviewPane.tsx       center — iframe preview, click-to-select + canvas toolbar
   PropertyPanel.tsx     right — prop inputs for the selected block
-  VariablesPanel.tsx    sample data row editor
-  TemplateSwitcher.tsx  switch between templates in the library
+  VariablesPanel.tsx    Data panel — sample data row editor
+  automation/
+    WorkflowBuilder.tsx node canvas + header + nav
+    StepInspector.tsx   right-panel editors for trigger / wait / send_email
+    TestRunModal.tsx    simulates a contact through the flow, shows timeline
 lib/
   blocks/
     types.ts            Block, Template, VariableDef
     render.ts           renderTemplate / renderBlock / cloneTemplate
     substitute.ts       {{path.to.value}} placeholder replacement
+    palette.ts          insertable element definitions (Elements panel)
+  automation/
+    types.ts            Trigger, Step, Pipeline, Enrollment, duration helpers
+    engine.ts           Clock + AutomationEngine (triggers, scheduler)
+    mailer.ts           Mailer interface + Console/Http/Collecting impls
   templates/
-    birthday.ts         reverse-engineered birthday template
-    onboarding-day1.ts  reverse-engineered onboarding template
+    *.ts                15 reverse-engineered templates
     index.ts            TEMPLATE_LIBRARY registry
+scripts/
+  automation-demo.ts    runnable engine demo (npm run automate)
 ```
 
 ## The reverse-engineering process
@@ -75,11 +100,12 @@ Once the library has ~20 templates this pattern can be partially automated with 
 
 | Subsystem | Where it goes |
 |---|---|
-| Google OAuth + Gmail API transport | `lib/transports/gmail.ts` (next milestone) |
+| Google OAuth + Gmail API transport | `lib/transports/gmail.ts` (next milestone) — plug in behind the `Mailer` interface |
 | Microsoft Graph transport | `lib/transports/microsoft.ts` |
 | Per-identity quota tracking + token-bucket rate limiter | `lib/transports/quota.ts` |
 | Data-source connectors (Sheets, Postgres, HRIS) | `lib/connectors/` |
-| Workflow engine (cron / date-relative / event triggers) | `lib/workflows/` (Inngest functions) |
+| Workflow **persistence + production scheduler** | engine exists (`lib/automation/`); still need to store enrollments and drive `tick()` / `evaluateDateTriggers()` from cron (e.g. Inngest) |
+| Saving workflows + templates server-side | the builder serializes a `Pipeline`; needs Postgres + Drizzle + CRUD |
 | Auth + multi-tenant workspaces | Clerk + Postgres + Drizzle |
 | Schema mapping UI (source field → template variable) | `app/mappings/` |
 
@@ -87,9 +113,9 @@ Once the library has ~20 templates this pattern can be partially automated with 
 
 The most impactful next pieces, in order:
 
-1. **Real Gmail OAuth + send** — replace the mock route with a real Gmail API transport. Requires a Google Cloud OAuth app and starting the verification process for the `gmail.send` scope.
-2. **One more template per category** (interview confirmation, work anniversary) — fleshes out the block-type library and stress-tests the schema.
+1. **Real Gmail OAuth + send** — replace the mock route with a real Gmail API transport behind the `Mailer` interface. Requires a Google Cloud OAuth app and verification for the `gmail.send` scope.
+2. **Persist + schedule workflows** — store the `Pipeline` the builder produces and the per-contact enrollments in Postgres, then drive `engine.tick()` and `evaluateDateTriggers()` from a daily/minutely cron (e.g. Inngest). This turns the in-memory engine into a real always-on scheduler.
 3. **Save templates server-side** — Postgres + Drizzle, then a templates list/CRUD UI.
-4. **Workflow trigger primitive** — start with cron-only ("every day at 9am, query this source, render this template, send via this identity").
+4. **Data-source connectors** — replace the sample Data panel with a real source (Sheets/Postgres/HRIS) so workflows enroll real employees.
 
 See `memory/project_arya_hr_email.md` for the full product context.

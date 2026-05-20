@@ -8,11 +8,12 @@ export default function HomePage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-brand">
             Arya — POC
           </p>
-          <h1 className="text-4xl font-bold text-ink">HR Email Builder</h1>
+          <h1 className="text-4xl font-bold text-ink">HR Email Studio</h1>
           <p className="text-base leading-relaxed text-slate-600">
-            Reverse-engineered HTML templates → editable blocks → live preview → final email.
-            The core idea proves: designers ship beautiful HTML, HRs get a drag-and-drop
-            builder constrained to that design, automation fills in employee data.
+            A Canva-style email builder plus a no-code automation builder. Designers ship
+            beautiful HTML, HRs customize it in a drag-and-drop editor constrained to that
+            design, and visual workflows (trigger → wait → send) fill in employee data and
+            deliver on schedule.
           </p>
         </div>
 
@@ -20,24 +21,24 @@ export default function HomePage() {
           <h2 className="text-lg font-semibold text-ink">What this POC shows</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
             <li>
-              <strong>Five real templates</strong> reverse-engineered from raw HTML —
-              spanning table-based email-safe (Newsletter), modern card designs
-              (Card-Style Reminder), long-form letters (Long-form Letter), and HR
-              originals (Birthday, Onboarding Day 1). Each preserves its own visual
-              language while exposing the same block-editing model.
+              <strong>15 real templates</strong> reverse-engineered from raw HTML —
+              table-based email-safe newsletters, modern card designs, long-form letters,
+              and ten HR originals. Each preserves its own visual language while exposing
+              the same block-editing model.
             </li>
             <li>
-              <strong>Block-aware editor</strong>: drag-reorder, click-to-select in the
-              preview (works on tables AND divs via a generic <code>data-block-id</code>
-              hook), edit text/colors/links/images in the side panel.
+              <strong>Canva-style editor</strong>: an element library to add blocks, a
+              visual template gallery, click-to-select on the canvas with a floating
+              move/duplicate/delete toolbar, and a type-aware property panel.
+            </li>
+            <li>
+              <strong>No-code workflows</strong>: a visual builder (trigger → wait → send)
+              backed by an engine with date/event triggers, a scheduler, and a pluggable
+              mailer. "Test run" fast-forwards waits to preview the whole sequence.
             </li>
             <li>
               <strong>Variable substitution</strong>: <code>{`{{employee.first_name}}`}</code>{" "}
-              etc. resolve live as you edit the sample data row.
-            </li>
-            <li>
-              <strong>Final HTML export</strong>: see exactly what would hand off to the
-              Gmail / Microsoft Graph transport.
+              etc. resolve live in both the editor preview and the workflow test run.
             </li>
           </ul>
         </div>
@@ -45,9 +46,12 @@ export default function HomePage() {
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           <h2 className="text-lg font-semibold text-ink">Not in this POC (next phases)</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-600">
-            <li>Google / Microsoft OAuth and real SMTP/API delivery</li>
-            <li>Data-source connectors (Sheets, Postgres, HRIS)</li>
-            <li>Workflow engine (cron + date-relative triggers, sequences)</li>
+            <li>Google / Microsoft OAuth and real SMTP/API delivery (mailer is mocked)</li>
+            <li>Data-source connectors (Sheets, Postgres, HRIS) — Data panel is sample-only</li>
+            <li>
+              Workflow persistence + always-on scheduler (engine runs in-memory; needs a DB
+              and cron to drive it in production)
+            </li>
             <li>Auth, multi-tenant workspaces, billing</li>
             <li>Automated HTML→block parser (currently a manual step)</li>
           </ul>
