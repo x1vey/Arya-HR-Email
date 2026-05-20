@@ -455,6 +455,7 @@ export function BlockEditor() {
             onAction={handleCanvasAction}
             onPaletteDrop={onPaletteDrop}
             onCanvasKey={runShortcut}
+            onEditProp={updateProp}
             dropActive={!!draggingItem}
           />
         </main>

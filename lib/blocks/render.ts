@@ -13,11 +13,51 @@ import { substitute } from "./substitute";
  */
 export function renderBlock(
   block: Block,
-  variables: Record<string, unknown>
+  variables: Record<string, unknown>,
+  editable = false
 ): string {
-  const withProps = substitute(block.html_template, block.props);
+  const tpl = editable ? annotateEditableProps(block) : block.html_template;
+  const withProps = substitute(tpl, block.props);
   const withVars = substitute(withProps, variables);
   return injectBlockId(withVars, block.id);
+}
+
+/**
+ * Editor-only: wrap each text/longtext prop's placeholder (where it sits in
+ * element-text position, not inside a tag/attribute) with a marker span so the
+ * preview can offer click-to-edit-in-place and map the edit back to the prop.
+ * Never used for the exported HTML.
+ */
+function annotateEditableProps(block: Block): string {
+  let html = block.html_template;
+  for (const [propKey, type] of Object.entries(block.propTypes)) {
+    if (type !== "text" && type !== "longtext") continue;
+    html = wrapTextPlaceholder(html, propKey, block.id);
+  }
+  return html;
+}
+
+function wrapTextPlaceholder(html: string, propKey: string, blockId: string): string {
+  const token = `{{${propKey}}}`;
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const idx = html.indexOf(token, i);
+    if (idx === -1) {
+      out += html.slice(i);
+      break;
+    }
+    const before = html.slice(0, idx);
+    // We're in text position (not inside a tag) when the most recent angle
+    // bracket before the token is a closing '>'.
+    const inText = before.lastIndexOf(">") >= before.lastIndexOf("<");
+    out += html.slice(i, idx);
+    out += inText
+      ? `<span data-arya-edit="${blockId}::${propKey}">${token}</span>`
+      : token;
+    i = idx + token.length;
+  }
+  return out;
 }
 
 /**
@@ -45,10 +85,11 @@ function injectBlockId(html: string, id: string): string {
  */
 export function renderTemplate(
   template: Template,
-  variables: Record<string, unknown>
+  variables: Record<string, unknown>,
+  editable = false
 ): string {
   const blocksHtml = template.blocks
-    .map((b) => renderBlock(b, variables))
+    .map((b) => renderBlock(b, variables, editable))
     .join("\n");
   // Build the wrapper. We substitute variables in the wrapper too (subject,
   // preheader, etc. may use variables), then splice the blocks in last so

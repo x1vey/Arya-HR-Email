@@ -22,6 +22,8 @@ interface PreviewPaneProps {
   onPaletteDrop: (targetId: string | null, position: "before" | "after") => void;
   /** A keyboard shortcut fired while focus was inside the preview iframe. */
   onCanvasKey: (k: CanvasKey) => void;
+  /** Inline edit committed on the canvas: set this block prop to this value. */
+  onEditProp: (blockId: string, propKey: string, value: string) => void;
   /** True while a palette element is being dragged (highlights the canvas). */
   dropActive: boolean;
 }
@@ -42,6 +44,7 @@ export function PreviewPane({
   onAction,
   onPaletteDrop,
   onCanvasKey,
+  onEditProp,
   dropActive
 }: PreviewPaneProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -58,10 +61,22 @@ export function PreviewPane({
     };
   }, [template.blocks, selectedBlockId]);
 
+  /** Raw (un-substituted) values for every inline-editable prop, keyed
+   *  "blockId::propKey" — so editing shows merge tags, not filled-in text. */
+  const editableValues = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const b of template.blocks) {
+      for (const [k, type] of Object.entries(b.propTypes)) {
+        if (type === "text" || type === "longtext") map[`${b.id}::${k}`] = b.props[k] ?? "";
+      }
+    }
+    return map;
+  }, [template.blocks]);
+
   const html = useMemo(() => {
-    const base = renderTemplate(template, variables);
-    return decorateForSelection(base, selectedMeta);
-  }, [template, variables, selectedMeta]);
+    const base = renderTemplate(template, variables, true);
+    return decorateForSelection(base, selectedMeta, editableValues);
+  }, [template, variables, selectedMeta, editableValues]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -80,16 +95,19 @@ export function PreviewPane({
           ctrlKey: !!d.ctrlKey,
           shiftKey: !!d.shiftKey
         });
+      } else if (d.type === "edit-prop") {
+        const [blockId, propKey] = String(d.key).split("::");
+        if (blockId && propKey) onEditProp(blockId, propKey, String(d.value ?? ""));
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [onSelectBlock, onAction, onPaletteDrop, onCanvasKey]);
+  }, [onSelectBlock, onAction, onPaletteDrop, onCanvasKey, onEditProp]);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 text-xs text-muted">
-        <span>Click to select · drag elements in · ⌫ delete · ⌘Z undo · ↑↓ move</span>
+        <span>Click to select · double-click text to edit · drag elements in · ⌫ delete · ⌘Z undo</span>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">600px · email-safe</span>
       </div>
       <div className="flex-1 overflow-auto bg-[#E9E6F5] p-8">
@@ -118,13 +136,20 @@ interface SelectedMeta {
  * floating action toolbar on the selected block, drag-and-drop insertion of
  * new elements (with a drop indicator), and keyboard-shortcut forwarding.
  */
-function decorateForSelection(html: string, selected: SelectedMeta | null): string {
+function decorateForSelection(
+  html: string,
+  selected: SelectedMeta | null,
+  editableValues: Record<string, string>
+): string {
   const selJson = JSON.stringify(selected);
+  const rawJson = JSON.stringify(editableValues);
   const script = `
 <script>
 (function() {
   var sel = ${selJson};
   var selectedId = sel ? sel.id : null;
+  var RAW = ${rawJson};
+  var editing = null;
 
   function makeBtn(label, title, action, disabled) {
     return '<button data-act="' + action + '"' + (disabled ? ' data-disabled="1"' : '') +
@@ -200,9 +225,51 @@ function decorateForSelection(html: string, selected: SelectedMeta | null): stri
     dropTarget = null;
   }
 
+  // ── inline text editing (double-click to edit in place) ──
+  function startEdit(span) {
+    if (editing) return;
+    editing = span;
+    var key = span.getAttribute('data-arya-edit');
+    span.setAttribute('data-orig', span.textContent);
+    if (RAW[key] != null) span.textContent = RAW[key]; // show raw merge tags
+    span.setAttribute('contenteditable', 'true');
+    span.focus();
+    var r = document.createRange();
+    r.selectNodeContents(span);
+    var s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+  function commitEdit(span) {
+    if (editing !== span) return;
+    editing = null;
+    span.removeAttribute('contenteditable');
+    window.parent.postMessage({ type: 'edit-prop', key: span.getAttribute('data-arya-edit'), value: span.textContent }, '*');
+  }
+  function cancelEdit(span) {
+    editing = null;
+    span.textContent = span.getAttribute('data-orig') || '';
+    span.removeAttribute('contenteditable');
+    span.blur();
+  }
+  function wireEditable(span) {
+    span.addEventListener('dblclick', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      startEdit(span);
+    });
+    span.addEventListener('blur', function() { commitEdit(span); });
+    span.addEventListener('keydown', function(ev) {
+      ev.stopPropagation(); // never let edits trigger global shortcuts
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); span.blur(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); cancelEdit(span); }
+    });
+  }
+
   // ── keyboard shortcut forwarding ──
   var SHORTCUT_KEYS = ['Delete','Backspace','ArrowUp','ArrowDown','Escape'];
   function onKeyDown(e) {
+    if (document.activeElement && document.activeElement.isContentEditable) return;
     var mod = e.metaKey || e.ctrlKey;
     var k = e.key.toLowerCase();
     var isModShortcut = mod && (k==='z'||k==='y'||k==='d'||k==='c'||k==='v');
@@ -246,6 +313,12 @@ function decorateForSelection(html: string, selected: SelectedMeta | null): stri
       var selEl = document.querySelector('[data-block-id="' + selectedId + '"]');
       if (selEl) buildToolbar(selEl);
     }
+
+    // inline-editable text spans
+    var st = document.createElement('style');
+    st.textContent = '[data-arya-edit]{cursor:text;border-radius:3px;transition:box-shadow .12s;} [data-arya-edit]:hover{box-shadow:inset 0 0 0 1px #C4B5FD;} [data-arya-edit][contenteditable="true"]{outline:2px solid #7C3AED;outline-offset:2px;background:rgba(124,58,237,0.06);cursor:text;}';
+    document.head.appendChild(st);
+    document.querySelectorAll('[data-arya-edit]').forEach(wireEditable);
 
     document.body.appendChild(line);
     document.addEventListener('dragover', onDragOver);
