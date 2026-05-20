@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import type { Template } from "@/lib/blocks/types";
+
+export type AiProvider = "gemini" | "groq";
 
 const SYSTEM_PROMPT = `You are an expert email template builder for Arya, an HR email platform. You generate email templates as structured JSON that renders in a Canva-style block editor.
 
@@ -89,10 +92,9 @@ Common variables (include the relevant ones):
 
 Generate professional, visually appealing email templates. Make the design feel polished — use proper spacing, subtle colors, and good typography hierarchy.`;
 
-export async function generateEmailTemplate(
-  prompt: string,
-  apiKey: string
-): Promise<Template> {
+// ── Gemini ──
+
+async function generateWithGemini(prompt: string, apiKey: string): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: "gemini-2.0-flash",
@@ -120,10 +122,47 @@ export async function generateEmailTemplate(
     `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`
   );
 
-  const text = result.response.text();
+  return result.response.text();
+}
+
+// ── Groq ──
+
+async function generateWithGroq(prompt: string, apiKey: string): Promise<string> {
+  const client = new OpenAI({
+    apiKey,
+    baseURL: "https://api.groq.com/openai/v1",
+  });
+
+  const completion = await client.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    temperature: 0.7,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`,
+      },
+    ],
+  });
+
+  return completion.choices[0]?.message?.content ?? "";
+}
+
+// ── Shared validation + entry point ──
+
+export async function generateEmailTemplate(
+  prompt: string,
+  apiKey: string,
+  provider: AiProvider = "gemini"
+): Promise<Template> {
+  const raw =
+    provider === "groq"
+      ? await generateWithGroq(prompt, apiKey)
+      : await generateWithGemini(prompt, apiKey);
 
   // Strip markdown fences if present (safety net)
-  const cleaned = text
+  const cleaned = raw
     .replace(/^```(?:json)?\s*\n?/i, "")
     .replace(/\n?```\s*$/i, "")
     .trim();
@@ -133,7 +172,7 @@ export async function generateEmailTemplate(
     parsed = JSON.parse(cleaned) as Template;
   } catch {
     throw new Error(
-      `AI returned invalid JSON. Raw response:\n${text.slice(0, 500)}`
+      `AI returned invalid JSON. Raw response:\n${raw.slice(0, 500)}`
     );
   }
 

@@ -9,8 +9,6 @@ interface ImportHtmlModalProps {
   onImported: (template: Template) => void;
 }
 
-const API_KEY_STORAGE = "arya_gemini_api_key";
-
 export function ImportHtmlModal({ open, onClose, onImported }: ImportHtmlModalProps) {
   const [html, setHtml] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +29,9 @@ export function ImportHtmlModal({ open, onClose, onImported }: ImportHtmlModalPr
     setLoading(true);
     setError(null);
 
-    const apiKey = localStorage.getItem(API_KEY_STORAGE) ?? "";
+    const provider = (localStorage.getItem("arya_ai_provider") ?? "gemini") as "gemini" | "groq";
+    const keyStore = provider === "groq" ? "arya_groq_api_key" : "arya_gemini_api_key";
+    const apiKey = localStorage.getItem(keyStore) ?? "";
 
     try {
       const res = await fetch("/api/generate-email", {
@@ -39,6 +39,7 @@ export function ImportHtmlModal({ open, onClose, onImported }: ImportHtmlModalPr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: `Convert this existing HTML email into an editable block-tree template. Preserve the exact visual design, colors, layout, and content. Each section should become a separate editable block with appropriate props. Here is the HTML:\n\n${html.trim()}`,
+          provider,
           ...(apiKey ? { apiKey } : {}),
         }),
       });

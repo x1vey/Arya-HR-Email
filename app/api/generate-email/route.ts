@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { generateEmailTemplate } from "@/lib/ai/generate-email";
+import { generateEmailTemplate, type AiProvider } from "@/lib/ai/generate-email";
 
 export async function POST(req: Request) {
   try {
-    const { prompt, apiKey } = (await req.json()) as {
+    const { prompt, apiKey, provider } = (await req.json()) as {
       prompt?: string;
       apiKey?: string;
+      provider?: AiProvider;
     };
 
     if (!prompt?.trim()) {
@@ -15,19 +16,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // API key can come from the request body (client-side key) or env
-    const key = apiKey?.trim() || process.env.GEMINI_API_KEY;
+    const p: AiProvider = provider === "groq" ? "groq" : "gemini";
+
+    // Resolve key: request body → env var (provider-specific → generic)
+    const key =
+      apiKey?.trim() ||
+      (p === "groq"
+        ? process.env.GROQ_API_KEY
+        : process.env.GEMINI_API_KEY);
+
     if (!key) {
+      const envName = p === "groq" ? "GROQ_API_KEY" : "GEMINI_API_KEY";
       return NextResponse.json(
         {
-          error:
-            "No Gemini API key. Set GEMINI_API_KEY in .env.local or provide it in the AI settings.",
+          error: `No ${p === "groq" ? "Groq" : "Gemini"} API key. Set ${envName} in .env.local or provide it in the AI settings.`,
         },
         { status: 400 }
       );
     }
 
-    const template = await generateEmailTemplate(prompt, key);
+    const template = await generateEmailTemplate(prompt, key, p);
     return NextResponse.json({ template });
   } catch (err) {
     const message =

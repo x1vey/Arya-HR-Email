@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { Template } from "@/lib/blocks/types";
+import type { AiProvider } from "@/lib/ai/generate-email";
 
 interface AiGenerateModalProps {
   open: boolean;
@@ -18,12 +19,29 @@ const SUGGESTIONS = [
   "Benefits enrollment reminder with deadline, key changes, and enrollment link",
 ];
 
-const API_KEY_STORAGE = "arya_gemini_api_key";
+const STORAGE_KEYS: Record<AiProvider, string> = {
+  gemini: "arya_gemini_api_key",
+  groq: "arya_groq_api_key",
+};
+
+const PROVIDER_META: Record<AiProvider, { label: string; placeholder: string; envHint: string }> = {
+  gemini: {
+    label: "Gemini",
+    placeholder: "AIza... (or set GEMINI_API_KEY in .env.local)",
+    envHint: "aistudio.google.com/apikey",
+  },
+  groq: {
+    label: "Groq",
+    placeholder: "gsk_... (or set GROQ_API_KEY in .env.local)",
+    envHint: "console.groq.com",
+  },
+};
 
 export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalProps) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [provider, setProvider] = useState<AiProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -31,21 +49,32 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
   useEffect(() => {
     if (open) {
       setError(null);
-      setApiKey(localStorage.getItem(API_KEY_STORAGE) ?? "");
+      const saved = localStorage.getItem("arya_ai_provider") as AiProvider | null;
+      const p = saved === "groq" ? "groq" : "gemini";
+      setProvider(p);
+      setApiKey(localStorage.getItem(STORAGE_KEYS[p]) ?? "");
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [open]);
 
+  // Sync key when provider changes
+  const switchProvider = (p: AiProvider) => {
+    setProvider(p);
+    setApiKey(localStorage.getItem(STORAGE_KEYS[p]) ?? "");
+    localStorage.setItem("arya_ai_provider", p);
+  };
+
   if (!open) return null;
+
+  const meta = PROVIDER_META[provider];
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setLoading(true);
     setError(null);
 
-    // Persist key if provided
     if (apiKey.trim()) {
-      localStorage.setItem(API_KEY_STORAGE, apiKey.trim());
+      localStorage.setItem(STORAGE_KEYS[provider], apiKey.trim());
     }
 
     try {
@@ -54,6 +83,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: prompt.trim(),
+          provider,
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
       });
@@ -156,32 +186,73 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
             </div>
           </div>
 
-          {/* API key */}
-          <div className="flex flex-col gap-1.5">
-            <button
-              onClick={() => setShowKeyInput(!showKeyInput)}
-              className="flex items-center gap-1 self-start text-[11px] font-medium text-muted transition hover:text-brand"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className={`h-3 w-3 transition ${showKeyInput ? "rotate-90" : ""}`}
+          {/* Provider + API key */}
+          <div className="flex flex-col gap-2">
+            {/* Provider toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                Provider
+              </span>
+              <div className="flex rounded-lg border border-slate-200">
+                {(["gemini", "groq"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => switchProvider(p)}
+                    className={`px-3 py-1 text-xs font-medium transition ${
+                      provider === p
+                        ? "bg-brand-light text-brand-dark"
+                        : "text-slate-500 hover:text-ink"
+                    } ${p === "gemini" ? "rounded-l-md" : "rounded-r-md border-l border-slate-200"}`}
+                  >
+                    {PROVIDER_META[p].label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-muted">
+                {provider === "groq" ? "Llama 3.3 70B — fast, generous free tier" : "Gemini 2.0 Flash"}
+              </span>
+            </div>
+
+            {/* Key input */}
+            <div className="flex flex-col gap-1.5">
+              <button
+                onClick={() => setShowKeyInput(!showKeyInput)}
+                className="flex items-center gap-1 self-start text-[11px] font-medium text-muted transition hover:text-brand"
               >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-              {apiKey ? "API key saved" : "Gemini API key"}
-            </button>
-            {showKeyInput && (
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIza... (saved in browser, or set GEMINI_API_KEY in .env.local)"
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-ink placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-              />
-            )}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className={`h-3 w-3 transition ${showKeyInput ? "rotate-90" : ""}`}
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+                {apiKey ? `${meta.label} key saved` : `${meta.label} API key`}
+              </button>
+              {showKeyInput && (
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={meta.placeholder}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-ink placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                  />
+                  <p className="text-[10px] text-muted">
+                    Get a key at{" "}
+                    <a
+                      href={`https://${meta.envHint}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand underline"
+                    >
+                      {meta.envHint}
+                    </a>
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Error */}
