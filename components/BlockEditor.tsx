@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Block, Template, VariableDef } from "@/lib/blocks/types";
 import { TEMPLATE_LIBRARY, getTemplateById } from "@/lib/templates";
 import { renderTemplate, cloneTemplate } from "@/lib/blocks/render";
-import type { PaletteItem } from "@/lib/blocks/palette";
+import type { PaletteItem, LayoutPreset } from "@/lib/blocks/palette";
 import { BlockList } from "./BlockList";
 import { PropertyPanel } from "./PropertyPanel";
 import { PreviewPane, type BlockAction, type CanvasKey } from "./PreviewPane";
@@ -153,17 +153,36 @@ export function BlockEditor() {
     [mutate]
   );
 
-  /** Click-to-add: after the selection, else before a trailing locked footer. */
+  /** Where a click-to-add should land: after the selection, else before a
+   *  trailing locked footer, else at the end. */
+  const clickInsertIndex = useCallback(() => {
+    const blocks = presentRef.current.blocks;
+    const selIdx = blocks.findIndex((b) => b.id === selectedRef.current);
+    if (selIdx !== -1) return selIdx + 1;
+    if (blocks.length && blocks[blocks.length - 1].locked) return blocks.length - 1;
+    return blocks.length;
+  }, []);
+
+  /** Click-to-add a single element. */
   const addBlock = useCallback(
-    (item: PaletteItem) => {
-      const blocks = presentRef.current.blocks;
-      const selIdx = blocks.findIndex((b) => b.id === selectedRef.current);
-      let at = blocks.length;
-      if (selIdx !== -1) at = selIdx + 1;
-      else if (blocks.length && blocks[blocks.length - 1].locked) at = blocks.length - 1;
-      insertBlockAt(item, at);
+    (item: PaletteItem) => insertBlockAt(item, clickInsertIndex()),
+    [insertBlockAt, clickInsertIndex]
+  );
+
+  /** Click-to-add a multi-block layout, inserted together. */
+  const addLayout = useCallback(
+    (preset: LayoutPreset) => {
+      const newBlocks = preset.make();
+      if (newBlocks.length === 0) return;
+      const at = clickInsertIndex();
+      mutate((t) => {
+        const blocks = [...t.blocks];
+        blocks.splice(Math.max(0, Math.min(at, blocks.length)), 0, ...newBlocks);
+        return { ...t, blocks };
+      });
+      setSelectedBlockId(newBlocks[0].id);
     },
-    [insertBlockAt]
+    [mutate, clickInsertIndex]
   );
 
   const duplicateBlock = useCallback(
@@ -425,7 +444,12 @@ export function BlockEditor() {
             <TemplateGallery templates={TEMPLATE_LIBRARY} activeId={template.id} onSwitch={switchTemplate} />
           )}
           {activeTab === "elements" && (
-            <ElementsPanel onAdd={addBlock} onDragStart={startDrag} onDragEnd={endDrag} />
+            <ElementsPanel
+              onAdd={addBlock}
+              onAddLayout={addLayout}
+              onDragStart={startDrag}
+              onDragEnd={endDrag}
+            />
           )}
           {activeTab === "layers" && (
             <BlockList

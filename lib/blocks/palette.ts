@@ -206,3 +206,60 @@ export const ELEMENT_PALETTE: PaletteItem[] = [
     })
   }
 ];
+
+/** Mint a single element by its palette key. */
+function el(key: string): Block {
+  const item = ELEMENT_PALETTE.find((p) => p.key === key);
+  if (!item) throw new Error(`Unknown element: ${key}`);
+  return item.make();
+}
+
+/**
+ * Pre-arranged multi-block layouts — Canva-style "Layouts". Clicking one
+ * drops the whole arrangement in at once.
+ */
+export interface LayoutPreset {
+  key: string;
+  label: string;
+  hint: string;
+  icon: string;
+  make: () => Block[];
+}
+
+const LAYOUT_ICONS = {
+  titleBody: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 11h16M4 15h16M4 19h10"/></svg>`,
+  imageText: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="9" rx="1.5"/><path d="M4 17h16M4 21h10" stroke-linecap="round"/></svg>`,
+  heroCta: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 9h16M4 13h10"/><rect x="4" y="17" width="9" height="4" rx="2"/></svg>`,
+  calloutCta: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="9" rx="1.5"/><rect x="4" y="17" width="9" height="4" rx="2"/></svg>`
+};
+
+export const LAYOUT_PRESETS: LayoutPreset[] = [
+  {
+    key: "title_body",
+    label: "Title + body",
+    hint: "Heading and paragraph",
+    icon: LAYOUT_ICONS.titleBody,
+    make: () => [el("heading"), el("text")]
+  },
+  {
+    key: "image_text",
+    label: "Image + text",
+    hint: "Picture with copy",
+    icon: LAYOUT_ICONS.imageText,
+    make: () => [el("image"), el("text")]
+  },
+  {
+    key: "hero_cta",
+    label: "Hero + button",
+    hint: "Headline, text, CTA",
+    icon: LAYOUT_ICONS.heroCta,
+    make: () => [el("heading"), el("text"), el("button")]
+  },
+  {
+    key: "callout_cta",
+    label: "Callout + button",
+    hint: "Note with an action",
+    icon: LAYOUT_ICONS.calloutCta,
+    make: () => [el("callout"), el("button")]
+  }
+];

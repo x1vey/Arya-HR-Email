@@ -25,9 +25,10 @@ npm run automate     # run the automation engine demo in the terminal
   - `cart-abandonment.ts` — modern card design with faux Mac chrome (CSS custom properties, flexbox — modern email clients only).
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
 - **Canva-style email editor** at `/editor`:
-  - Left icon rail with four panels — **Templates** (visual gallery), **Elements** (insert blocks), **Layers** (drag-reorder via `@dnd-kit`), **Data** (sample variables)
-  - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas** (heading / text / button / image / callout / divider / spacer blocks, each email-safe); a drop indicator shows where it lands
-  - **Canvas with click-to-select**, a floating contextual toolbar (move / duplicate / delete), and **double-click-to-edit text in place** — inline editing shows the raw value so merge tags like `{{employee.first_name}}` are preserved instead of baked in
+  - Left icon rail with four panels — **Templates** (visual gallery + **Start from scratch** blank canvas), **Elements** (layouts + blocks), **Layers** (drag-reorder via `@dnd-kit`), **Data** (sample variables)
+  - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas** (heading / text / button / image / callout / divider / spacer); a drop indicator shows where it lands. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
+  - **Hover any section** for a Canva-style action toolbar (move / duplicate / delete) that follows the cursor; clicking selects, and the toolbar stays on the selected block
+  - **Double-click-to-edit text in place** — inline editing shows the raw value so merge tags like `{{employee.first_name}}` are preserved instead of baked in
   - **Keyboard shortcuts + undo/redo**: ⌫ delete, ⌘/Ctrl+D duplicate, ⌘/Ctrl+Z / ⌘⇧Z undo-redo, ↑/↓ move, ⌘/Ctrl+C·V copy-paste, Esc deselect (shortcuts work even when focus is in the preview iframe, via key forwarding)
   - Type-aware property inputs (text / longtext / color / image / link / alignment)
   - "View HTML" modal — what gets handed to the SMTP transport
@@ -73,7 +74,7 @@ lib/
     types.ts            Block, Template, VariableDef
     render.ts           renderTemplate / renderBlock / cloneTemplate
     substitute.ts       {{path.to.value}} placeholder replacement
-    palette.ts          insertable element definitions (Elements panel)
+    palette.ts          insertable elements + layout presets (Elements panel)
   automation/
     types.ts            Trigger, Step, Pipeline, Enrollment, duration helpers
     engine.ts           Clock + AutomationEngine (triggers, scheduler)
@@ -81,7 +82,8 @@ lib/
     store.ts            localStorage persistence + seed (multiple automations)
   templates/
     *.ts                15 reverse-engineered templates
-    index.ts            TEMPLATE_LIBRARY registry
+    blank.ts            empty "start from scratch" canvas
+    index.ts            TEMPLATE_LIBRARY registry (+ blank)
 scripts/
   automation-demo.ts    runnable engine demo (npm run automate)
 ```

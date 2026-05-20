@@ -49,17 +49,13 @@ export function PreviewPane({
 }: PreviewPaneProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  const selectedMeta = useMemo(() => {
-    const idx = template.blocks.findIndex((b) => b.id === selectedBlockId);
-    if (idx === -1) return null;
-    const b = template.blocks[idx];
-    return {
-      id: b.id,
-      locked: Boolean(b.locked),
-      isFirst: idx === 0,
-      isLast: idx === template.blocks.length - 1
-    };
-  }, [template.blocks, selectedBlockId]);
+  /** Ordered id + locked flag for every block, so the in-iframe toolbar can
+   *  work out move-up/down availability and delete permission for any block
+   *  it hovers — not just the selected one. */
+  const blocksMeta = useMemo(
+    () => template.blocks.map((b) => ({ id: b.id, locked: Boolean(b.locked) })),
+    [template.blocks]
+  );
 
   /** Raw (un-substituted) values for every inline-editable prop, keyed
    *  "blockId::propKey" — so editing shows merge tags, not filled-in text. */
@@ -75,8 +71,8 @@ export function PreviewPane({
 
   const html = useMemo(() => {
     const base = renderTemplate(template, variables, true);
-    return decorateForSelection(base, selectedMeta, editableValues);
-  }, [template, variables, selectedMeta, editableValues]);
+    return decorateForSelection(base, selectedBlockId, editableValues, blocksMeta);
+  }, [template, variables, selectedBlockId, editableValues, blocksMeta]);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -124,32 +120,32 @@ export function PreviewPane({
   );
 }
 
-interface SelectedMeta {
+interface BlockMeta {
   id: string;
   locked: boolean;
-  isFirst: boolean;
-  isLast: boolean;
 }
 
 /**
- * Inject the in-iframe behaviour: click-to-select, hover outlines, the
- * floating action toolbar on the selected block, drag-and-drop insertion of
- * new elements (with a drop indicator), and keyboard-shortcut forwarding.
+ * Inject the in-iframe behaviour: click-to-select, a Canva-style action
+ * toolbar that follows the hovered (or selected) block, double-click text
+ * editing, drag-and-drop insertion with a drop indicator, and keyboard-
+ * shortcut forwarding.
  */
 function decorateForSelection(
   html: string,
-  selected: SelectedMeta | null,
-  editableValues: Record<string, string>
+  selectedId: string | null,
+  editableValues: Record<string, string>,
+  blocksMeta: BlockMeta[]
 ): string {
-  const selJson = JSON.stringify(selected);
-  const rawJson = JSON.stringify(editableValues);
   const script = `
 <script>
 (function() {
-  var sel = ${selJson};
-  var selectedId = sel ? sel.id : null;
-  var RAW = ${rawJson};
+  var selectedId = ${JSON.stringify(selectedId)};
+  var META = ${JSON.stringify(blocksMeta)};
+  var RAW = ${JSON.stringify(editableValues)};
   var editing = null;
+
+  function indexOf(id) { for (var i=0;i<META.length;i++){ if(META[i].id===id) return i; } return -1; }
 
   function makeBtn(label, title, action, disabled) {
     return '<button data-act="' + action + '"' + (disabled ? ' data-disabled="1"' : '') +
@@ -158,33 +154,47 @@ function decorateForSelection(
       (disabled ? 'rgba(255,255,255,0.35)' : '#fff') + ';">' + label + '</button>';
   }
 
-  function buildToolbar(el) {
-    var bar = document.createElement('div');
-    bar.id = '__arya_toolbar';
-    var btns = '';
-    btns += makeBtn('↑', 'Move up', 'up', sel.isFirst);
-    btns += makeBtn('↓', 'Move down', 'down', sel.isLast);
-    btns += makeBtn('⧉', 'Duplicate', 'duplicate', false);
-    if (!sel.locked) {
-      btns += makeBtn('🗑', 'Delete', 'delete', false);
-    }
-    bar.innerHTML = btns;
-    bar.style.cssText = 'position:absolute;z-index:2147483647;display:flex;gap:2px;padding:3px;background:#15112B;border-radius:9px;box-shadow:0 4px 16px rgba(0,0,0,0.25);';
+  // ── reusable action toolbar (follows hover / selection) ──
+  var bar = document.createElement('div');
+  bar.id = '__arya_toolbar';
+  bar.style.cssText = 'position:absolute;z-index:2147483647;display:none;gap:2px;padding:3px;background:#15112B;border-radius:9px;box-shadow:0 4px 16px rgba(0,0,0,0.25);';
+  var barFor = null, hideTimer = null;
+
+  function showToolbarFor(id) {
+    var el = document.querySelector('[data-block-id="' + id + '"]');
+    if (!el) return;
+    var i = indexOf(id);
+    var m = META[i] || { locked: false };
+    var h = '';
+    h += makeBtn('↑', 'Move up', 'up', i <= 0);
+    h += makeBtn('↓', 'Move down', 'down', i >= META.length - 1);
+    h += makeBtn('⧉', 'Duplicate', 'duplicate', false);
+    if (!m.locked) h += makeBtn('🗑', 'Delete', 'delete', false);
+    bar.innerHTML = h;
     var rect = el.getBoundingClientRect();
-    var top = rect.top + window.scrollY - 38;
-    if (top < 4) top = rect.top + window.scrollY + 4;
+    var top = rect.top + window.scrollY - 36;
+    if (rect.top < 40) top = rect.top + window.scrollY + 6;
     bar.style.top = top + 'px';
-    bar.style.left = (rect.right + window.scrollX - 8) + 'px';
+    bar.style.left = (rect.right + window.scrollX - 6) + 'px';
     bar.style.transform = 'translateX(-100%)';
-    bar.addEventListener('click', function(ev) {
-      var b = ev.target.closest('button');
-      if (!b || b.getAttribute('data-disabled')) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      window.parent.postMessage({ type: 'block-action', action: b.getAttribute('data-act'), blockId: selectedId }, '*');
-    });
-    document.body.appendChild(bar);
+    bar.style.display = 'flex';
+    barFor = id;
   }
+  function scheduleHide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function() {
+      if (selectedId) showToolbarFor(selectedId);
+      else { bar.style.display = 'none'; barFor = null; }
+    }, 140);
+  }
+  bar.addEventListener('mouseenter', function() { clearTimeout(hideTimer); });
+  bar.addEventListener('mouseleave', scheduleHide);
+  bar.addEventListener('click', function(ev) {
+    var b = ev.target.closest('button');
+    if (!b || b.getAttribute('data-disabled') || !barFor) return;
+    ev.preventDefault(); ev.stopPropagation();
+    window.parent.postMessage({ type: 'block-action', action: b.getAttribute('data-act'), blockId: barFor }, '*');
+  });
 
   function blockFrom(node) {
     while (node && node !== document.body) {
@@ -198,7 +208,6 @@ function decorateForSelection(
   var line = document.createElement('div');
   line.style.cssText = 'position:absolute;height:3px;background:#7C3AED;border-radius:2px;z-index:2147483646;display:none;pointer-events:none;';
   var dropTarget = null, dropPos = 'after';
-
   function showLine(rect, before) {
     line.style.display = 'block';
     line.style.left = (rect.left + window.scrollX) + 'px';
@@ -206,7 +215,6 @@ function decorateForSelection(
     line.style.top = ((before ? rect.top : rect.bottom) + window.scrollY - 1) + 'px';
   }
   function hideLine() { line.style.display = 'none'; }
-
   function onDragOver(e) {
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -231,14 +239,13 @@ function decorateForSelection(
     editing = span;
     var key = span.getAttribute('data-arya-edit');
     span.setAttribute('data-orig', span.textContent);
-    if (RAW[key] != null) span.textContent = RAW[key]; // show raw merge tags
+    if (RAW[key] != null) span.textContent = RAW[key];
     span.setAttribute('contenteditable', 'true');
     span.focus();
     var r = document.createRange();
     r.selectNodeContents(span);
     var s = window.getSelection();
-    s.removeAllRanges();
-    s.addRange(r);
+    s.removeAllRanges(); s.addRange(r);
   }
   function commitEdit(span) {
     if (editing !== span) return;
@@ -253,14 +260,10 @@ function decorateForSelection(
     span.blur();
   }
   function wireEditable(span) {
-    span.addEventListener('dblclick', function(ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      startEdit(span);
-    });
+    span.addEventListener('dblclick', function(ev) { ev.preventDefault(); ev.stopPropagation(); startEdit(span); });
     span.addEventListener('blur', function() { commitEdit(span); });
     span.addEventListener('keydown', function(ev) {
-      ev.stopPropagation(); // never let edits trigger global shortcuts
+      ev.stopPropagation();
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); span.blur(); }
       else if (ev.key === 'Escape') { ev.preventDefault(); cancelEdit(span); }
     });
@@ -284,43 +287,32 @@ function decorateForSelection(
     blocks.forEach(function(el) {
       var blockId = el.getAttribute('data-block-id');
       el.style.cursor = 'pointer';
-      el.style.transition = 'outline 0.15s';
-      if (blockId === selectedId) {
-        el.style.outline = '2px solid #7C3AED';
-        el.style.outlineOffset = '-2px';
-      } else {
-        el.style.outline = 'none';
-      }
+      el.style.transition = 'outline 0.12s';
+      if (blockId === selectedId) { el.style.outline = '2px solid #7C3AED'; el.style.outlineOffset = '-2px'; }
       el.addEventListener('mouseenter', function() {
-        if (blockId !== selectedId) {
-          el.style.outline = '1px dashed #A78BFA';
-          el.style.outlineOffset = '-1px';
-        }
+        clearTimeout(hideTimer);
+        if (blockId !== selectedId) { el.style.outline = '2px solid #C4B5FD'; el.style.outlineOffset = '-2px'; }
+        showToolbarFor(blockId);
       });
       el.addEventListener('mouseleave', function() {
-        if (blockId !== selectedId) {
-          el.style.outline = 'none';
-        }
+        if (blockId !== selectedId) el.style.outline = 'none';
+        scheduleHide();
       });
       el.addEventListener('click', function(ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         window.parent.postMessage({ type: 'block-click', blockId: blockId }, '*');
       });
     });
 
-    if (selectedId) {
-      var selEl = document.querySelector('[data-block-id="' + selectedId + '"]');
-      if (selEl) buildToolbar(selEl);
-    }
-
-    // inline-editable text spans
     var st = document.createElement('style');
     st.textContent = '[data-arya-edit]{cursor:text;border-radius:3px;transition:box-shadow .12s;} [data-arya-edit]:hover{box-shadow:inset 0 0 0 1px #C4B5FD;} [data-arya-edit][contenteditable="true"]{outline:2px solid #7C3AED;outline-offset:2px;background:rgba(124,58,237,0.06);cursor:text;}';
     document.head.appendChild(st);
     document.querySelectorAll('[data-arya-edit]').forEach(wireEditable);
 
+    document.body.appendChild(bar);
     document.body.appendChild(line);
+    if (selectedId) showToolbarFor(selectedId);
+
     document.addEventListener('dragover', onDragOver);
     document.addEventListener('drop', onDrop);
     document.addEventListener('dragleave', function(e) { if (!e.relatedTarget) hideLine(); });

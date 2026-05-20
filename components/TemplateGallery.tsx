@@ -1,6 +1,7 @@
 "use client";
 
 import type { Template } from "@/lib/blocks/types";
+import { BLANK_TEMPLATE_ID } from "@/lib/templates";
 
 interface TemplateGalleryProps {
   templates: Template[];
@@ -22,6 +23,27 @@ export function TemplateGallery({ templates, activeId, onSwitch }: TemplateGalle
           Pick a starting point. Switching replaces the current design.
         </p>
       </div>
+
+      {/* Start from scratch */}
+      <button
+        onClick={() => onSwitch(BLANK_TEMPLATE_ID)}
+        className={`flex items-center gap-3 rounded-xl border-2 border-dashed p-3 text-left transition ${
+          activeId === BLANK_TEMPLATE_ID
+            ? "border-brand bg-brand-light/40"
+            : "border-slate-300 hover:border-brand hover:bg-brand-light/30"
+        }`}
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-gradient text-xl font-bold text-white">
+          +
+        </span>
+        <span>
+          <span className="block text-sm font-semibold text-ink">Start from scratch</span>
+          <span className="block text-[11px] text-muted">Blank canvas — add your own elements</span>
+        </span>
+      </button>
+
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Or pick a template</div>
+
       <div className="grid grid-cols-1 gap-3">
         {templates.map((t) => {
           const active = t.id === activeId;

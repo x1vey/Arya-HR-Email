@@ -13,7 +13,12 @@ import { oriSecurityAlertTemplate } from "./ori-security-alert";
 import { oriEmployeeRecognitionTemplate } from "./ori-employee-recognition";
 import { oriOfficeRelocationTemplate } from "./ori-office-relocation";
 import { oriTownHallRecapTemplate } from "./ori-town-hall-recap";
+import { blankTemplate } from "./blank";
 import type { Template } from "@/lib/blocks/types";
+
+/** A clean starting point exposed separately from the template grid. */
+export { blankTemplate };
+export const BLANK_TEMPLATE_ID = blankTemplate.id;
 
 /**
  * Registry of all reverse-engineered templates.
@@ -41,5 +46,6 @@ export const TEMPLATE_LIBRARY: Template[] = [
 ];
 
 export function getTemplateById(id: string): Template | undefined {
+  if (id === blankTemplate.id) return blankTemplate;
   return TEMPLATE_LIBRARY.find((t) => t.id === id);
 }
