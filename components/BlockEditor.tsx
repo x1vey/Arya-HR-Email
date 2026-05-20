@@ -6,14 +6,12 @@ import type { Block, Template, VariableDef } from "@/lib/blocks/types";
 import { TEMPLATE_LIBRARY, getTemplateById } from "@/lib/templates";
 import { renderTemplate, cloneTemplate } from "@/lib/blocks/render";
 import type { PaletteItem, LayoutPreset } from "@/lib/blocks/palette";
-import { BlockList } from "./BlockList";
 import { PropertyPanel } from "./PropertyPanel";
 import { PreviewPane, type BlockAction, type CanvasKey } from "./PreviewPane";
-import { VariablesPanel } from "./VariablesPanel";
 import { ElementsPanel } from "./ElementsPanel";
 import { TemplateGallery } from "./TemplateGallery";
 
-type Tab = "templates" | "elements" | "layers" | "data";
+type Tab = "templates" | "elements";
 
 // ── template history (undo/redo) ──────────────────────────────────────────────
 
@@ -90,6 +88,7 @@ export function BlockEditor() {
   const [activeTab, setActiveTab] = useState<Tab>("elements");
   const [draggingItem, setDraggingItem] = useState<PaletteItem | null>(null);
   const [clipboard, setClipboard] = useState<Block | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Refs so the global key handler reads fresh values without re-subscribing.
   const selectedRef = useRef(selectedBlockId);
@@ -379,14 +378,25 @@ export function BlockEditor() {
       })
     });
     const data = await res.json();
-    alert(
-      `Mock send response:\n\n` +
-        `provider: ${data.provider}\n` +
-        `message_id: ${data.message_id}\n` +
-        `daily_quota_remaining: ${data.daily_quota_remaining}\n\n` +
-        `(Final HTML logged to server console.)`
-    );
+    showToast(`Test sent — quota: ${data.daily_quota_remaining} remaining`);
   };
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const saveTemplate = useCallback(
+    (name: string) => {
+      const saved = { ...template, name, id: `saved_${Date.now()}` };
+      const key = "arya_saved_templates";
+      const existing: Template[] = JSON.parse(localStorage.getItem(key) ?? "[]");
+      existing.push(saved);
+      localStorage.setItem(key, JSON.stringify(existing));
+      showToast(`Saved "${name}"`);
+    },
+    [template, showToast]
+  );
 
   return (
     <div className="flex h-screen flex-col bg-canvas">
@@ -451,22 +461,6 @@ export function BlockEditor() {
               onDragEnd={endDrag}
             />
           )}
-          {activeTab === "layers" && (
-            <BlockList
-              blocks={template.blocks}
-              selectedId={selectedBlockId}
-              onSelect={setSelectedBlockId}
-              onReorder={reorderBlocks}
-              onDelete={deleteBlock}
-            />
-          )}
-          {activeTab === "data" && (
-            <VariablesPanel
-              variables={template.variables}
-              values={variableValues}
-              onChange={updateVariable}
-            />
-          )}
         </aside>
 
         {/* Center: live canvas */}
@@ -485,8 +479,16 @@ export function BlockEditor() {
         </main>
 
         {/* Right: property panel */}
-        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4">
-          <PropertyPanel block={selectedBlock} onChange={updateProp} />
+        <aside className="w-[320px] shrink-0 border-l border-slate-200 bg-white">
+          <PropertyPanel
+            block={selectedBlock}
+            onChange={updateProp}
+            variables={template.variables}
+            variableValues={variableValues}
+            onVariableChange={updateVariable}
+            onSaveTemplate={saveTemplate}
+            templateName={template.name}
+          />
         </aside>
       </div>
 
@@ -495,6 +497,12 @@ export function BlockEditor() {
           html={renderTemplate(template, variableScope)}
           onClose={() => setShowFinalHtml(false)}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-[fadeInUp_0.2s_ease-out] rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white shadow-float">
+          {toast}
+        </div>
       )}
     </div>
   );
@@ -536,16 +544,6 @@ const RAIL_TABS: { tab: Tab; label: string; icon: string }[] = [
     tab: "elements",
     label: "Elements",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><path d="M3 16l4 5 4-5z"/><rect x="13" y="14" width="8" height="7" rx="1.5"/></svg>`
-  },
-  {
-    tab: "layers",
-    label: "Layers",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>`
-  },
-  {
-    tab: "data",
-    label: "Data",
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>`
   }
 ];
 
