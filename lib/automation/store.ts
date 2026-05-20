@@ -14,7 +14,7 @@ export interface StoredAutomation {
   updatedAt: number;
 }
 
-const KEY = "arya.automations.v1";
+const KEY = "arya.automations.v2";
 
 let seq = 0;
 export function newId(): string {
@@ -22,9 +22,11 @@ export function newId(): string {
   return `wf_${Date.now().toString(36)}${seq}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** Shipped examples so the dashboard isn't empty on first visit. */
+/** Shipped examples so the dashboard isn't empty on first visit — a spread of
+ *  realistic HR workflows covering every trigger type and varied step counts. */
 function seed(): StoredAutomation[] {
   const now = Date.now();
+  const hr = 3_600_000;
   return [
     {
       id: "wf_seed_onboarding",
@@ -44,7 +46,74 @@ function seed(): StoredAutomation[] {
       steps: [
         { type: "send_email", templateId: "tpl_birthday_v1", subject: "Happy birthday, {{employee.first_name}}! 🎉" }
       ],
-      updatedAt: now - 1000
+      updatedAt: now - 2 * hr
+    },
+    {
+      id: "wf_seed_anniversary",
+      name: "Work anniversary recognition",
+      trigger: { kind: "date_field", field: "employee.hire_date", recurring: "annual" },
+      steps: [
+        { type: "send_email", templateId: "tpl_ori_recognition_v1", subject: "Celebrating your anniversary, {{employee.first_name}}!" }
+      ],
+      updatedAt: now - 5 * hr
+    },
+    {
+      id: "wf_seed_anniv_heads_up",
+      name: "Manager anniversary heads-up",
+      trigger: { kind: "date_field", field: "employee.hire_date", recurring: "annual", offsetDays: 7 },
+      steps: [
+        { type: "send_email", templateId: "tpl_ori_announcement_v1", subject: "{{employee.first_name}}'s work anniversary is coming up" }
+      ],
+      updatedAt: now - 26 * hr
+    },
+    {
+      id: "wf_seed_offboarding",
+      name: "Offboarding farewell",
+      trigger: { kind: "event", event: "employee_offboarded" },
+      steps: [
+        { type: "send_email", templateId: "tpl_ori_announcement_v1", subject: "Wishing you all the best, {{employee.first_name}}" }
+      ],
+      updatedAt: now - 30 * hr
+    },
+    {
+      id: "wf_seed_newsletter",
+      name: "Monthly company newsletter",
+      trigger: { kind: "manual" },
+      steps: [
+        { type: "send_email", templateId: "tpl_newsletter_v1", subject: "{{company.name}} — this month at a glance" }
+      ],
+      updatedAt: now - 50 * hr
+    },
+    {
+      id: "wf_seed_policy",
+      name: "Policy update broadcast",
+      trigger: { kind: "manual" },
+      steps: [
+        { type: "send_email", templateId: "tpl_ori_policy_update_v1", subject: "Important policy update at {{company.name}}" }
+      ],
+      updatedAt: now - 72 * hr
+    },
+    {
+      id: "wf_seed_benefits",
+      name: "Benefits open enrollment",
+      trigger: { kind: "manual" },
+      steps: [
+        { type: "send_email", templateId: "tpl_ori_benefits_v1", subject: "Open enrollment is here, {{employee.first_name}}" },
+        { type: "wait", duration: days(5) },
+        { type: "send_email", templateId: "tpl_ori_benefits_v1", subject: "Reminder: benefits enrollment closes soon" }
+      ],
+      updatedAt: now - 96 * hr
+    },
+    {
+      id: "wf_seed_all_hands",
+      name: "All-hands reminder + recap",
+      trigger: { kind: "manual" },
+      steps: [
+        { type: "send_email", templateId: "tpl_ori_all_hands_v1", subject: "All-hands this Friday — see you there" },
+        { type: "wait", duration: days(1) },
+        { type: "send_email", templateId: "tpl_ori_townhall_v1", subject: "Missed the all-hands? Here's the recap" }
+      ],
+      updatedAt: now - 120 * hr
     }
   ];
 }
