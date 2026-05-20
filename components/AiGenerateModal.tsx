@@ -43,7 +43,9 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<AiProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
+  const [context, setContext] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [showContext, setShowContext] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
       const p = saved === "groq" ? "groq" : "gemini";
       setProvider(p);
       setApiKey(localStorage.getItem(STORAGE_KEYS[p]) ?? "");
+      setContext(localStorage.getItem("arya_ai_context") ?? "");
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [open]);
@@ -76,13 +79,21 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
     if (apiKey.trim()) {
       localStorage.setItem(STORAGE_KEYS[provider], apiKey.trim());
     }
+    if (context.trim()) {
+      localStorage.setItem("arya_ai_context", context.trim());
+    }
+
+    // Build full prompt with context prepended
+    const fullPrompt = context.trim()
+      ? `## Brand & company context (always follow these rules):\n${context.trim()}\n\n## Email request:\n${prompt.trim()}`
+      : prompt.trim();
 
     try {
       const res = await fetch("/api/generate-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: prompt.trim(),
+          prompt: fullPrompt,
           provider,
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         }),
@@ -184,6 +195,45 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Context / brand guidelines */}
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => setShowContext(!showContext)}
+              className="flex items-center gap-1 self-start text-[11px] font-semibold uppercase tracking-wide text-muted transition hover:text-brand"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`h-3 w-3 transition ${showContext ? "rotate-90" : ""}`}
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+              Context & guidelines
+              {context.trim() && (
+                <span className="ml-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold normal-case text-green-600">
+                  Active
+                </span>
+              )}
+            </button>
+            {showContext && (
+              <div className="flex flex-col gap-1">
+                <textarea
+                  value={context}
+                  onChange={(e) => setContext(e.target.value)}
+                  placeholder={`e.g.\n- Company: Acme Corp, primary color #2563EB, logo at https://...\n- Tone: warm, professional, never salesy\n- Always include the company address in the footer\n- Sign off as "The People Team"`}
+                  rows={5}
+                  disabled={loading}
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-ink placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+                />
+                <p className="text-[10px] text-muted">
+                  Brand colors, tone, company name, logo URL, sign-off rules — anything the AI should always follow. Saved in your browser.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Provider + API key */}
