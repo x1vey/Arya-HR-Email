@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import type { Block, Template, VariableDef } from "@/lib/blocks/types";
 import { TEMPLATE_LIBRARY, getTemplateById } from "@/lib/templates";
@@ -8,15 +8,78 @@ import { renderTemplate, cloneTemplate } from "@/lib/blocks/render";
 import type { PaletteItem } from "@/lib/blocks/palette";
 import { BlockList } from "./BlockList";
 import { PropertyPanel } from "./PropertyPanel";
-import { PreviewPane, type BlockAction } from "./PreviewPane";
+import { PreviewPane, type BlockAction, type CanvasKey } from "./PreviewPane";
 import { VariablesPanel } from "./VariablesPanel";
 import { ElementsPanel } from "./ElementsPanel";
 import { TemplateGallery } from "./TemplateGallery";
 
 type Tab = "templates" | "elements" | "layers" | "data";
 
+// ── template history (undo/redo) ──────────────────────────────────────────────
+
+interface HistoryState {
+  present: Template;
+  past: Template[];
+  future: Template[];
+  /** consecutive mutations with the same key collapse into one undo step */
+  coalesceKey: string | null;
+}
+
+type HistoryAction =
+  | { type: "reset"; template: Template }
+  | { type: "mutate"; fn: (t: Template) => Template; coalesceKey?: string }
+  | { type: "undo" }
+  | { type: "redo" };
+
+function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
+  switch (action.type) {
+    case "reset":
+      return { present: action.template, past: [], future: [], coalesceKey: null };
+    case "mutate": {
+      const next = action.fn(state.present);
+      if (next === state.present) return state;
+      const coalesce = !!action.coalesceKey && action.coalesceKey === state.coalesceKey;
+      return {
+        present: next,
+        past: coalesce ? state.past : [...state.past, state.present].slice(-100),
+        future: [],
+        coalesceKey: action.coalesceKey ?? null
+      };
+    }
+    case "undo": {
+      if (state.past.length === 0) return state;
+      const prev = state.past[state.past.length - 1];
+      return {
+        present: prev,
+        past: state.past.slice(0, -1),
+        future: [state.present, ...state.future],
+        coalesceKey: null
+      };
+    }
+    case "redo": {
+      if (state.future.length === 0) return state;
+      const nxt = state.future[0];
+      return {
+        present: nxt,
+        past: [...state.past, state.present],
+        future: state.future.slice(1),
+        coalesceKey: null
+      };
+    }
+    default:
+      return state;
+  }
+}
+
 export function BlockEditor() {
-  const [template, setTemplate] = useState<Template>(() => cloneTemplate(TEMPLATE_LIBRARY[0]));
+  const [history, dispatch] = useReducer(historyReducer, undefined, () => ({
+    present: cloneTemplate(TEMPLATE_LIBRARY[0]),
+    past: [],
+    future: [],
+    coalesceKey: null
+  }));
+  const template = history.present;
+
   const [variableValues, setVariableValues] = useState<Record<string, string>>(() =>
     buildInitialVariables(TEMPLATE_LIBRARY[0].variables)
   );
@@ -25,88 +88,134 @@ export function BlockEditor() {
   );
   const [showFinalHtml, setShowFinalHtml] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("elements");
+  const [draggingItem, setDraggingItem] = useState<PaletteItem | null>(null);
+  const [clipboard, setClipboard] = useState<Block | null>(null);
+
+  // Refs so the global key handler reads fresh values without re-subscribing.
+  const selectedRef = useRef(selectedBlockId);
+  const presentRef = useRef(template);
+  const clipboardRef = useRef<Block | null>(null);
+  const draggingRef = useRef<PaletteItem | null>(null);
+  useEffect(() => void (selectedRef.current = selectedBlockId), [selectedBlockId]);
+  useEffect(() => void (presentRef.current = template), [template]);
+  useEffect(() => void (clipboardRef.current = clipboard), [clipboard]);
 
   const selectedBlock = useMemo(
     () => template.blocks.find((b) => b.id === selectedBlockId) ?? null,
     [template.blocks, selectedBlockId]
   );
 
-  /** Convert the flat key→value record into the nested scope expected by
-   *  the renderer (e.g., { "employee.first_name": "Priya" } →
-   *  { employee: { first_name: "Priya" } }). */
   const variableScope = useMemo(() => {
     const scope: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(variableValues)) {
-      setPath(scope, key, value);
-    }
+    for (const [key, value] of Object.entries(variableValues)) setPath(scope, key, value);
     return scope;
   }, [variableValues]);
+
+  const mutate = useCallback(
+    (fn: (t: Template) => Template, coalesceKey?: string) => dispatch({ type: "mutate", fn, coalesceKey }),
+    []
+  );
+  const undo = useCallback(() => dispatch({ type: "undo" }), []);
+  const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
   const switchTemplate = useCallback((id: string) => {
     const t = getTemplateById(id);
     if (!t) return;
-    setTemplate(cloneTemplate(t));
+    dispatch({ type: "reset", template: cloneTemplate(t) });
     setVariableValues(buildInitialVariables(t.variables));
     setSelectedBlockId(t.blocks[0]?.id ?? null);
   }, []);
 
-  const reorderBlocks = useCallback((newBlocks: Block[]) => {
-    setTemplate((t) => ({ ...t, blocks: newBlocks }));
-  }, []);
+  const reorderBlocks = useCallback(
+    (newBlocks: Block[]) => mutate((t) => ({ ...t, blocks: newBlocks })),
+    [mutate]
+  );
 
-  const deleteBlock = useCallback((id: string) => {
-    setTemplate((t) => ({ ...t, blocks: t.blocks.filter((b) => b.id !== id) }));
-    setSelectedBlockId((cur) => (cur === id ? null : cur));
-  }, []);
+  const deleteBlock = useCallback(
+    (id: string) => {
+      mutate((t) => ({ ...t, blocks: t.blocks.filter((b) => b.id !== id) }));
+      setSelectedBlockId((cur) => (cur === id ? null : cur));
+    },
+    [mutate]
+  );
 
-  /** Insert a fresh block from the element palette, just after the current
-   *  selection (or before a trailing locked footer when nothing is selected). */
-  const addBlock = useCallback(
-    (item: PaletteItem) => {
+  /** Insert a fresh palette block at an explicit index. */
+  const insertBlockAt = useCallback(
+    (item: PaletteItem, index: number) => {
       const nb = item.make();
-      setTemplate((t) => {
+      mutate((t) => {
         const blocks = [...t.blocks];
-        const selIdx = blocks.findIndex((b) => b.id === selectedBlockId);
-        if (selIdx !== -1) {
-          blocks.splice(selIdx + 1, 0, nb);
-        } else if (blocks.length && blocks[blocks.length - 1].locked) {
-          blocks.splice(blocks.length - 1, 0, nb);
-        } else {
-          blocks.push(nb);
-        }
+        blocks.splice(Math.max(0, Math.min(index, blocks.length)), 0, nb);
         return { ...t, blocks };
       });
       setSelectedBlockId(nb.id);
     },
-    [selectedBlockId]
+    [mutate]
   );
 
-  const duplicateBlock = useCallback((id: string) => {
-    setTemplate((t) => {
-      const idx = t.blocks.findIndex((b) => b.id === id);
-      if (idx === -1) return t;
-      const orig = t.blocks[idx];
-      const copy: Block = {
-        ...(JSON.parse(JSON.stringify(orig)) as Block),
-        id: freshId(orig.type),
-        locked: false
-      };
-      const blocks = [...t.blocks];
-      blocks.splice(idx + 1, 0, copy);
-      return { ...t, blocks };
-    });
-  }, []);
+  /** Click-to-add: after the selection, else before a trailing locked footer. */
+  const addBlock = useCallback(
+    (item: PaletteItem) => {
+      const blocks = presentRef.current.blocks;
+      const selIdx = blocks.findIndex((b) => b.id === selectedRef.current);
+      let at = blocks.length;
+      if (selIdx !== -1) at = selIdx + 1;
+      else if (blocks.length && blocks[blocks.length - 1].locked) at = blocks.length - 1;
+      insertBlockAt(item, at);
+    },
+    [insertBlockAt]
+  );
 
-  const moveBlock = useCallback((id: string, dir: "up" | "down") => {
-    setTemplate((t) => {
-      const idx = t.blocks.findIndex((b) => b.id === id);
-      const ni = dir === "up" ? idx - 1 : idx + 1;
-      if (idx === -1 || ni < 0 || ni >= t.blocks.length) return t;
+  const duplicateBlock = useCallback(
+    (id: string) => {
+      let newId: string | null = null;
+      mutate((t) => {
+        const idx = t.blocks.findIndex((b) => b.id === id);
+        if (idx === -1) return t;
+        const copy: Block = {
+          ...(JSON.parse(JSON.stringify(t.blocks[idx])) as Block),
+          id: (newId = freshId(t.blocks[idx].type)),
+          locked: false
+        };
+        const blocks = [...t.blocks];
+        blocks.splice(idx + 1, 0, copy);
+        return { ...t, blocks };
+      });
+      if (newId) setSelectedBlockId(newId);
+    },
+    [mutate]
+  );
+
+  const moveBlock = useCallback(
+    (id: string, dir: "up" | "down") => {
+      mutate((t) => {
+        const idx = t.blocks.findIndex((b) => b.id === id);
+        const ni = dir === "up" ? idx - 1 : idx + 1;
+        if (idx === -1 || ni < 0 || ni >= t.blocks.length) return t;
+        const blocks = [...t.blocks];
+        [blocks[idx], blocks[ni]] = [blocks[ni], blocks[idx]];
+        return { ...t, blocks };
+      });
+    },
+    [mutate]
+  );
+
+  const pasteAfterSelected = useCallback(() => {
+    const src = clipboardRef.current;
+    if (!src) return;
+    const copy: Block = {
+      ...(JSON.parse(JSON.stringify(src)) as Block),
+      id: freshId(src.type),
+      locked: false
+    };
+    mutate((t) => {
       const blocks = [...t.blocks];
-      [blocks[idx], blocks[ni]] = [blocks[ni], blocks[idx]];
+      const idx = blocks.findIndex((b) => b.id === selectedRef.current);
+      blocks.splice(idx === -1 ? blocks.length : idx + 1, 0, copy);
       return { ...t, blocks };
     });
-  }, []);
+    setSelectedBlockId(copy.id);
+  }, [mutate]);
 
   const handleCanvasAction = useCallback(
     (action: BlockAction, id: string) => {
@@ -120,18 +229,122 @@ export function BlockEditor() {
 
   const updateProp = useCallback(
     (blockId: string, propKey: string, value: string) => {
-      setTemplate((t) => ({
-        ...t,
-        blocks: t.blocks.map((b) =>
-          b.id === blockId ? { ...b, props: { ...b.props, [propKey]: value } } : b
-        )
-      }));
+      mutate(
+        (t) => ({
+          ...t,
+          blocks: t.blocks.map((b) =>
+            b.id === blockId ? { ...b, props: { ...b.props, [propKey]: value } } : b
+          )
+        }),
+        `prop:${blockId}:${propKey}`
+      );
     },
-    []
+    [mutate]
   );
 
   const updateVariable = useCallback((key: string, value: string) => {
     setVariableValues((cur) => ({ ...cur, [key]: value }));
+  }, []);
+
+  // ── keyboard shortcuts ──────────────────────────────────────────────────────
+
+  /** Run a shortcut. Returns true if it was handled. Shared by the window
+   *  listener and keys forwarded from inside the preview iframe. */
+  const runShortcut = useCallback(
+    (k: CanvasKey): boolean => {
+      const mod = k.metaKey || k.ctrlKey;
+      const key = k.key.toLowerCase();
+      if (mod && key === "z") {
+        k.shiftKey ? redo() : undo();
+        return true;
+      }
+      if (mod && key === "y") {
+        redo();
+        return true;
+      }
+      const id = selectedRef.current;
+      const blk = id ? presentRef.current.blocks.find((b) => b.id === id) ?? null : null;
+      if (mod && key === "d") {
+        if (id) duplicateBlock(id);
+        return true;
+      }
+      if (mod && key === "c") {
+        if (blk) setClipboard(blk);
+        return true;
+      }
+      if (mod && key === "v") {
+        pasteAfterSelected();
+        return true;
+      }
+      if (k.key === "Delete" || k.key === "Backspace") {
+        if (!id) return false;
+        if (!blk?.locked) deleteBlock(id);
+        return true;
+      }
+      if (k.key === "ArrowUp") {
+        if (!id) return false;
+        moveBlock(id, "up");
+        return true;
+      }
+      if (k.key === "ArrowDown") {
+        if (!id) return false;
+        moveBlock(id, "down");
+        return true;
+      }
+      if (k.key === "Escape") {
+        setSelectedBlockId(null);
+        return true;
+      }
+      return false;
+    },
+    [undo, redo, duplicateBlock, deleteBlock, moveBlock, pasteAfterSelected]
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)
+      ) {
+        return; // let form fields keep their own typing/undo
+      }
+      if (runShortcut({ key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey })) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [runShortcut]);
+
+  // ── drag-to-add from the Elements panel ─────────────────────────────────────
+
+  const onPaletteDrop = useCallback(
+    (targetId: string | null, position: "before" | "after") => {
+      const item = draggingRef.current;
+      draggingRef.current = null;
+      setDraggingItem(null);
+      if (!item) return;
+      const blocks = presentRef.current.blocks;
+      let at = blocks.length;
+      if (targetId) {
+        const idx = blocks.findIndex((b) => b.id === targetId);
+        if (idx !== -1) at = position === "before" ? idx : idx + 1;
+      } else if (blocks.length && blocks[blocks.length - 1].locked) {
+        at = blocks.length - 1;
+      }
+      insertBlockAt(item, at);
+    },
+    [insertBlockAt]
+  );
+
+  const startDrag = useCallback((item: PaletteItem) => {
+    draggingRef.current = item;
+    setDraggingItem(item);
+  }, []);
+  const endDrag = useCallback(() => {
+    draggingRef.current = null;
+    setDraggingItem(null);
   }, []);
 
   const handleMockSend = async () => {
@@ -173,6 +386,14 @@ export function BlockEditor() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="mr-1 flex items-center gap-1">
+            <HeaderIcon label="Undo (⌘Z)" disabled={history.past.length === 0} onClick={undo}>
+              ↶
+            </HeaderIcon>
+            <HeaderIcon label="Redo (⌘⇧Z)" disabled={history.future.length === 0} onClick={redo}>
+              ↷
+            </HeaderIcon>
+          </div>
           <Link
             href="/automations"
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
@@ -201,13 +422,11 @@ export function BlockEditor() {
         {/* Active tab panel */}
         <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4">
           {activeTab === "templates" && (
-            <TemplateGallery
-              templates={TEMPLATE_LIBRARY}
-              activeId={template.id}
-              onSwitch={switchTemplate}
-            />
+            <TemplateGallery templates={TEMPLATE_LIBRARY} activeId={template.id} onSwitch={switchTemplate} />
           )}
-          {activeTab === "elements" && <ElementsPanel onAdd={addBlock} />}
+          {activeTab === "elements" && (
+            <ElementsPanel onAdd={addBlock} onDragStart={startDrag} onDragEnd={endDrag} />
+          )}
           {activeTab === "layers" && (
             <BlockList
               blocks={template.blocks}
@@ -234,6 +453,9 @@ export function BlockEditor() {
             selectedBlockId={selectedBlockId}
             onSelectBlock={setSelectedBlockId}
             onAction={handleCanvasAction}
+            onPaletteDrop={onPaletteDrop}
+            onCanvasKey={runShortcut}
+            dropActive={!!draggingItem}
           />
         </main>
 
@@ -250,6 +472,32 @@ export function BlockEditor() {
         />
       )}
     </div>
+  );
+}
+
+function HeaderIcon({
+  children,
+  label,
+  onClick,
+  disabled
+}: {
+  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition ${
+        disabled ? "cursor-not-allowed text-slate-300" : "text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -286,15 +534,10 @@ function IconRail({ active, onChange }: { active: Tab; onChange: (t: Tab) => voi
             key={tab}
             onClick={() => onChange(tab)}
             className={`flex w-[60px] flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition ${
-              on
-                ? "bg-white/10 text-white"
-                : "text-white/55 hover:bg-white/5 hover:text-white/90"
+              on ? "bg-white/10 text-white" : "text-white/55 hover:bg-white/5 hover:text-white/90"
             }`}
           >
-            <span
-              className="[&_svg]:h-5 [&_svg]:w-5"
-              dangerouslySetInnerHTML={{ __html: icon }}
-            />
+            <span className="[&_svg]:h-5 [&_svg]:w-5" dangerouslySetInnerHTML={{ __html: icon }} />
             {label}
           </button>
         );
@@ -347,9 +590,7 @@ function setPath(obj: Record<string, unknown>, path: string, value: unknown): vo
   let cur: Record<string, unknown> = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const key = parts[i];
-    if (!(key in cur) || typeof cur[key] !== "object" || cur[key] === null) {
-      cur[key] = {};
-    }
+    if (!(key in cur) || typeof cur[key] !== "object" || cur[key] === null) cur[key] = {};
     cur = cur[key] as Record<string, unknown>;
   }
   cur[parts[parts.length - 1]] = value;

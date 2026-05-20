@@ -27,9 +27,10 @@ export default function HomePage() {
               the same block-editing model.
             </li>
             <li>
-              <strong>Canva-style editor</strong>: an element library to add blocks, a
-              visual template gallery, click-to-select on the canvas with a floating
-              move/duplicate/delete toolbar, and a type-aware property panel.
+              <strong>Canva-style editor</strong>: drag elements onto the canvas (or click
+              to add), a visual template gallery, click-to-select with a floating
+              move/duplicate/delete toolbar, undo/redo, and keyboard shortcuts
+              (delete, duplicate, move, copy-paste).
             </li>
             <li>
               <strong>No-code workflows</strong>: a dashboard to create and manage multiple

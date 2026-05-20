@@ -26,8 +26,9 @@ npm run automate     # run the automation engine demo in the terminal
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
 - **Canva-style email editor** at `/editor`:
   - Left icon rail with four panels — **Templates** (visual gallery), **Elements** (insert blocks), **Layers** (drag-reorder via `@dnd-kit`), **Data** (sample variables)
-  - **Element library** (`lib/blocks/palette.ts`) — click to add heading / text / button / image / callout / divider / spacer blocks, each email-safe
+  - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas** (heading / text / button / image / callout / divider / spacer blocks, each email-safe); a drop indicator shows where it lands
   - **Canvas with click-to-select** and a floating contextual toolbar (move / duplicate / delete) over the selected block
+  - **Keyboard shortcuts + undo/redo**: ⌫ delete, ⌘/Ctrl+D duplicate, ⌘/Ctrl+Z / ⌘⇧Z undo-redo, ↑/↓ move, ⌘/Ctrl+C·V copy-paste, Esc deselect (shortcuts work even when focus is in the preview iframe, via key forwarding)
   - Type-aware property inputs (text / longtext / color / image / link / alignment)
   - "View HTML" modal — what gets handed to the SMTP transport
   - "Send test" — POSTs to a stub API route that simulates Gmail Workspace quota tracking
