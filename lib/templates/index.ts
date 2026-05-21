@@ -13,6 +13,10 @@ import { oriSecurityAlertTemplate } from "./ori-security-alert";
 import { oriEmployeeRecognitionTemplate } from "./ori-employee-recognition";
 import { oriOfficeRelocationTemplate } from "./ori-office-relocation";
 import { oriTownHallRecapTemplate } from "./ori-town-hall-recap";
+import { noirDropTemplate } from "./noir-drop";
+import { auroraGlowTemplate } from "./aurora-glow";
+import { editorialLookbookTemplate } from "./editorial-lookbook";
+import { minimalLuxTemplate } from "./minimal-lux";
 import { blankTemplate } from "./blank";
 import type { Template } from "@/lib/blocks/types";
 
@@ -42,7 +46,11 @@ export const TEMPLATE_LIBRARY: Template[] = [
   oriSecurityAlertTemplate,
   oriEmployeeRecognitionTemplate,
   oriOfficeRelocationTemplate,
-  oriTownHallRecapTemplate
+  oriTownHallRecapTemplate,
+  noirDropTemplate,
+  auroraGlowTemplate,
+  editorialLookbookTemplate,
+  minimalLuxTemplate
 ];
 
 export function getTemplateById(id: string): Template | undefined {
