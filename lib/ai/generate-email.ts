@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import type { Template } from "@/lib/blocks/types";
 
-export type AiProvider = "gemini" | "groq";
+export type AiProvider = "gemini" | "groq" | "openrouter";
 
 const SYSTEM_PROMPT = `You are an expert email template builder for Arya, an HR email platform. You generate email templates as structured JSON that renders in a Canva-style block editor.
 
@@ -149,6 +149,29 @@ async function generateWithGroq(prompt: string, apiKey: string): Promise<string>
   return completion.choices[0]?.message?.content ?? "";
 }
 
+// ── OpenRouter ──
+
+async function generateWithOpenRouter(prompt: string, apiKey: string): Promise<string> {
+  const client = new OpenAI({
+    apiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+  });
+
+  const completion = await client.chat.completions.create({
+    model: "google/gemini-2.0-flash-001",
+    temperature: 0.7,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`,
+      },
+    ],
+  });
+
+  return completion.choices[0]?.message?.content ?? "";
+}
+
 // ── Shared validation + entry point ──
 
 export async function generateEmailTemplate(
@@ -156,10 +179,17 @@ export async function generateEmailTemplate(
   apiKey: string,
   provider: AiProvider = "gemini"
 ): Promise<Template> {
-  const raw =
-    provider === "groq"
-      ? await generateWithGroq(prompt, apiKey)
-      : await generateWithGemini(prompt, apiKey);
+  let raw: string;
+  switch (provider) {
+    case "groq":
+      raw = await generateWithGroq(prompt, apiKey);
+      break;
+    case "openrouter":
+      raw = await generateWithOpenRouter(prompt, apiKey);
+      break;
+    default:
+      raw = await generateWithGemini(prompt, apiKey);
+  }
 
   // Strip markdown fences if present (safety net)
   const cleaned = raw

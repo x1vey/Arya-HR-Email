@@ -22,18 +22,27 @@ const SUGGESTIONS = [
 const STORAGE_KEYS: Record<AiProvider, string> = {
   gemini: "arya_gemini_api_key",
   groq: "arya_groq_api_key",
+  openrouter: "arya_openrouter_api_key",
 };
 
-const PROVIDER_META: Record<AiProvider, { label: string; placeholder: string; envHint: string }> = {
+const PROVIDER_META: Record<AiProvider, { label: string; sub: string; placeholder: string; envHint: string }> = {
   gemini: {
     label: "Gemini",
+    sub: "Google Gemini 2.0 Flash",
     placeholder: "AIza... (or set GEMINI_API_KEY in .env.local)",
     envHint: "aistudio.google.com/apikey",
   },
   groq: {
     label: "Groq",
+    sub: "Llama 3.3 70B — fast",
     placeholder: "gsk_... (or set GROQ_API_KEY in .env.local)",
     envHint: "console.groq.com",
+  },
+  openrouter: {
+    label: "OpenRouter",
+    sub: "Multi-model gateway",
+    placeholder: "sk-or-... (or set OPENROUTER_API_KEY in .env.local)",
+    envHint: "openrouter.ai/keys",
   },
 };
 
@@ -51,8 +60,8 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
   useEffect(() => {
     if (open) {
       setError(null);
-      const saved = localStorage.getItem("arya_ai_provider") as AiProvider | null;
-      const p = saved === "groq" ? "groq" : "gemini";
+      const saved = localStorage.getItem("arya_ai_provider");
+      const p: AiProvider = saved === "groq" ? "groq" : saved === "openrouter" ? "openrouter" : "gemini";
       setProvider(p);
       setApiKey(localStorage.getItem(STORAGE_KEYS[p]) ?? "");
       setContext(localStorage.getItem("arya_ai_context") ?? "");
@@ -244,7 +253,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                 Provider
               </span>
               <div className="flex rounded-lg border border-slate-200">
-                {(["gemini", "groq"] as const).map((p) => (
+                {(["gemini", "groq", "openrouter"] as const).map((p, i) => (
                   <button
                     key={p}
                     onClick={() => switchProvider(p)}
@@ -252,15 +261,13 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                       provider === p
                         ? "bg-brand-light text-brand-dark"
                         : "text-slate-500 hover:text-ink"
-                    } ${p === "gemini" ? "rounded-l-md" : "rounded-r-md border-l border-slate-200"}`}
+                    } ${i === 0 ? "rounded-l-md" : "border-l border-slate-200"} ${i === 2 ? "rounded-r-md" : ""}`}
                   >
                     {PROVIDER_META[p].label}
                   </button>
                 ))}
               </div>
-              <span className="text-[10px] text-muted">
-                {provider === "groq" ? "Llama 3.3 70B — fast, generous free tier" : "Gemini 2.0 Flash"}
-              </span>
+              <span className="text-[10px] text-muted">{meta.sub}</span>
             </div>
 
             {/* Key input */}

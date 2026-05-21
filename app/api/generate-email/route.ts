@@ -16,20 +16,34 @@ export async function POST(req: Request) {
       );
     }
 
-    const p: AiProvider = provider === "groq" ? "groq" : "gemini";
+    const validProviders = ["gemini", "groq", "openrouter"] as const;
+    const p: AiProvider = validProviders.includes(provider as AiProvider)
+      ? (provider as AiProvider)
+      : "gemini";
 
-    // Resolve key: request body → env var (provider-specific → generic)
-    const key =
-      apiKey?.trim() ||
-      (p === "groq"
-        ? process.env.GROQ_API_KEY
-        : process.env.GEMINI_API_KEY);
+    // Resolve key: request body → env var (provider-specific)
+    const envMap: Record<AiProvider, string | undefined> = {
+      gemini: process.env.GEMINI_API_KEY,
+      groq: process.env.GROQ_API_KEY,
+      openrouter: process.env.OPENROUTER_API_KEY,
+    };
+    const labelMap: Record<AiProvider, string> = {
+      gemini: "Gemini",
+      groq: "Groq",
+      openrouter: "OpenRouter",
+    };
+    const envNameMap: Record<AiProvider, string> = {
+      gemini: "GEMINI_API_KEY",
+      groq: "GROQ_API_KEY",
+      openrouter: "OPENROUTER_API_KEY",
+    };
+
+    const key = apiKey?.trim() || envMap[p];
 
     if (!key) {
-      const envName = p === "groq" ? "GROQ_API_KEY" : "GEMINI_API_KEY";
       return NextResponse.json(
         {
-          error: `No ${p === "groq" ? "Groq" : "Gemini"} API key. Set ${envName} in .env.local or provide it in the AI settings.`,
+          error: `No ${labelMap[p]} API key. Set ${envNameMap[p]} in .env.local or provide it in the AI settings.`,
         },
         { status: 400 }
       );
