@@ -24,7 +24,7 @@ export function AutomationsList({
 }: AutomationsListProps) {
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
+      <header className="flex items-center justify-between border-b border-brand-pale bg-white px-6 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-sm font-bold text-white">
             A
@@ -36,7 +36,7 @@ export function AutomationsList({
         </div>
         <Link
           href="/editor"
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition hover:bg-brand-light hover:text-brand"
         >
           ← Email Studio
         </Link>
@@ -91,10 +91,10 @@ function AutomationCard({
 }) {
   const sends = automation.steps.filter((s) => s.type === "send_email").length;
   return (
-    <div className="group flex flex-col rounded-xl2 border border-slate-200 bg-white p-4 shadow-panel transition hover:border-brand/50">
+    <div className="group flex flex-col rounded-xl border border-brand-pale bg-white p-4 shadow-soft transition hover:border-brand/50">
       <button onClick={onOpen} className="flex-1 text-left">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-base text-amber-600">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-warm/10 text-base text-accent-warm">
             ⚡
           </span>
           <div className="min-w-0">
@@ -104,7 +104,7 @@ function AutomationCard({
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {automation.steps.length === 0 ? (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">No steps yet</span>
+            <span className="rounded-full bg-brand-light px-2 py-0.5 text-[11px] text-muted">No steps yet</span>
           ) : (
             automation.steps.slice(0, 4).map((s, i) => (
               <span key={i} className="rounded-full bg-brand-light px-2 py-0.5 text-[11px] font-medium text-brand-dark">
@@ -113,14 +113,14 @@ function AutomationCard({
             ))
           )}
           {automation.steps.length > 4 && (
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+            <span className="rounded-full bg-brand-light px-2 py-0.5 text-[11px] text-muted">
               +{automation.steps.length - 4}
             </span>
           )}
         </div>
       </button>
 
-      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+      <div className="mt-4 flex items-center justify-between border-t border-brand-pale pt-3">
         <span className="text-[11px] text-muted">
           {sends} email{sends === 1 ? "" : "s"} · updated {timeAgo(automation.updatedAt)}
         </span>
@@ -134,7 +134,7 @@ function AutomationCard({
           <button
             onClick={onDuplicate}
             title="Duplicate"
-            className="rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100"
+            className="rounded-md px-2 py-1 text-xs text-muted transition hover:bg-brand-light"
           >
             Duplicate
           </button>
@@ -143,7 +143,7 @@ function AutomationCard({
               if (confirm(`Delete "${automation.name}"?`)) onDelete();
             }}
             title="Delete"
-            className="rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-red-50 hover:text-red-500"
+            className="rounded-md px-2 py-1 text-xs text-muted transition hover:bg-red-50 hover:text-red-500"
           >
             Delete
           </button>
@@ -155,7 +155,7 @@ function AutomationCard({
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl2 border border-dashed border-slate-300 bg-white py-16 text-center">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-brand-pale bg-white py-16 text-center">
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-light text-xl text-brand">⚡</span>
       <h2 className="mt-3 text-base font-semibold text-ink">No automations yet</h2>
       <p className="mt-1 max-w-xs text-sm text-muted">

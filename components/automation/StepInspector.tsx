@@ -56,7 +56,7 @@ export const TRIGGER_PRESETS: {
 ];
 
 const inputCls =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
+  "w-full rounded-lg border border-brand-pale bg-white px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
 export function StepInspector({
   selection,
@@ -141,7 +141,7 @@ function TriggerEditor({ trigger, onChange }: { trigger: Trigger; onChange: (t: 
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">Start the workflow…</span>
+        <span className="text-xs font-medium text-muted">Start the workflow…</span>
         <select
           className={inputCls}
           value={active.id}
@@ -160,7 +160,7 @@ function TriggerEditor({ trigger, onChange }: { trigger: Trigger; onChange: (t: 
 
       {isDate && (
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-slate-600">Timing</span>
+          <span className="text-xs font-medium text-muted">Timing</span>
           <select
             className={inputCls}
             value={String(offset)}
@@ -176,7 +176,7 @@ function TriggerEditor({ trigger, onChange }: { trigger: Trigger; onChange: (t: 
         </label>
       )}
 
-      <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-muted">
+      <p className="rounded-lg bg-brand-light px-3 py-2 text-xs leading-relaxed text-muted">
         {triggerHelp(trigger)}
       </p>
     </div>
@@ -187,7 +187,7 @@ function WaitEditor({ step, onChange }: { step: Extract<Step, { type: "wait" }>;
   const { value, unit } = splitDuration(step.duration);
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-xs font-medium text-slate-600">Wait for</span>
+      <span className="text-xs font-medium text-muted">Wait for</span>
       <div className="flex gap-2">
         <input
           type="number"
@@ -206,7 +206,7 @@ function WaitEditor({ step, onChange }: { step: Extract<Step, { type: "wait" }>;
           <option value="days">Days</option>
         </select>
       </div>
-      <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-muted">
+      <p className="rounded-lg bg-brand-light px-3 py-2 text-xs leading-relaxed text-muted">
         Holds each contact here before moving to the next step.
       </p>
     </div>
@@ -223,7 +223,7 @@ function SendEditor({
   return (
     <div className="flex flex-col gap-3">
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">Template</span>
+        <span className="text-xs font-medium text-muted">Template</span>
         <select
           className={inputCls}
           value={step.templateId}
@@ -237,7 +237,7 @@ function SendEditor({
         </select>
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">Subject line</span>
+        <span className="text-xs font-medium text-muted">Subject line</span>
         <input
           type="text"
           className={inputCls}
@@ -274,10 +274,10 @@ function IconBtn({
       onClick={onClick}
       className={`flex h-7 w-7 items-center justify-center rounded-md border text-sm transition ${
         disabled
-          ? "cursor-not-allowed border-slate-100 text-slate-300"
+          ? "cursor-not-allowed border-brand-pale/50 text-brand-pale"
           : danger
-            ? "border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-500"
-            : "border-slate-200 text-slate-600 hover:border-slate-300"
+            ? "border-brand-pale text-muted hover:border-red-300 hover:text-red-500"
+            : "border-brand-pale text-muted hover:border-brand/40 hover:text-ink"
       }`}
     >
       {children}

@@ -33,7 +33,9 @@ const ICONS = {
   image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-7 7"/></svg>`,
   divider: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16"/></svg>`,
   spacer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v16M8 7l4-4 4 4M8 17l4 4 4-4"/></svg>`,
-  callout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h10M7 14h6"/></svg>`
+  callout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h10M7 14h6"/></svg>`,
+  signature: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 14c-.5 1.5-2 3-4 3s-3-1-4-3c-1 2-2 3-4 3s-3.5-1.5-4-3"/><path d="M4 21h16"/><path d="M12 3v11"/></svg>`,
+  social: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>`
 };
 
 export const ELEMENT_PALETTE: PaletteItem[] = [
@@ -97,7 +99,7 @@ export const ELEMENT_PALETTE: PaletteItem[] = [
       props: {
         text: "Get started",
         url: "https://example.com",
-        background_color: "#7C3AED",
+        background_color: "#4F6B4A",
         text_color: "#FFFFFF",
         align: "left"
       },
@@ -123,7 +125,7 @@ export const ELEMENT_PALETTE: PaletteItem[] = [
       type: "image",
       label: "Image",
       props: {
-        image_url: "https://placehold.co/600x240/EDE7FF/7C3AED?text=Your+image",
+        image_url: "https://placehold.co/600x240/EAEEE2/4F6B4A?text=Your+image",
         alt: "Image",
         link_url: ""
       },
@@ -148,8 +150,8 @@ export const ELEMENT_PALETTE: PaletteItem[] = [
       label: "Callout",
       props: {
         text: "Heads up — this is an important note worth highlighting.",
-        background_color: "#EDE7FF",
-        accent_color: "#7C3AED"
+        background_color: "#EAEEE2",
+        accent_color: "#4F6B4A"
       },
       propTypes: {
         text: "longtext",
@@ -202,6 +204,81 @@ export const ELEMENT_PALETTE: PaletteItem[] = [
       },
       html_template: `<tr><td style="padding:0;line-height:0;font-size:0;">
   <div style="height:{{height}}px;line-height:{{height}}px;font-size:1px;">&nbsp;</div>
+</td></tr>`
+    })
+  },
+  {
+    key: "signature",
+    label: "Signature",
+    hint: "Email sign-off block",
+    icon: ICONS.signature,
+    make: () => ({
+      id: uid("signature"),
+      type: "signature",
+      label: "Email signature",
+      props: {
+        name: "{{sender.name}}",
+        title: "{{sender.title}}",
+        company: "{{company.name}}",
+        phone: "+1 (555) 000-0000",
+        email: "{{sender.email}}",
+        avatar_url: "https://placehold.co/64x64/EAEEE2/4F6B4A?text=AV",
+        text_color: "#3F4A3D",
+        accent_color: "#4F6B4A"
+      },
+      propTypes: {
+        name: "text",
+        title: "text",
+        company: "text",
+        phone: "text",
+        email: "text",
+        avatar_url: "image_url",
+        text_color: "color",
+        accent_color: "color"
+      },
+      html_template: `<tr><td style="padding:24px 32px;">
+  <table cellpadding="0" cellspacing="0" border="0"><tr>
+    <td style="padding-right:16px;vertical-align:top;">
+      <img src="{{avatar_url}}" alt="" width="52" height="52" style="display:block;border-radius:50%;border:2px solid {{accent_color}};" />
+    </td>
+    <td style="vertical-align:top;">
+      <p style="margin:0;font-size:15px;font-weight:600;color:{{text_color}};">{{name}}</p>
+      <p style="margin:2px 0 0;font-size:13px;color:#7A8474;">{{title}} · {{company}}</p>
+      <p style="margin:6px 0 0;font-size:12px;color:#7A8474;">{{phone}} · {{email}}</p>
+    </td>
+  </tr></table>
+</td></tr>`
+    })
+  },
+  {
+    key: "social",
+    label: "Social links",
+    hint: "Social media icons row",
+    icon: ICONS.social,
+    make: () => ({
+      id: uid("social"),
+      type: "social_links",
+      label: "Social links",
+      props: {
+        linkedin_url: "https://linkedin.com/company/yourco",
+        twitter_url: "https://twitter.com/yourco",
+        website_url: "https://yourcompany.com",
+        align: "center",
+        icon_color: "#4F6B4A"
+      },
+      propTypes: {
+        linkedin_url: "link_url",
+        twitter_url: "link_url",
+        website_url: "link_url",
+        align: "alignment",
+        icon_color: "color"
+      },
+      html_template: `<tr><td style="padding:16px 32px;text-align:{{align}};">
+  <table cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr>
+    <td style="padding:0 8px;"><a href="{{linkedin_url}}" style="color:{{icon_color}};font-size:13px;text-decoration:none;font-weight:500;">LinkedIn</a></td>
+    <td style="padding:0 8px;border-left:1px solid #DDE3D2;"><a href="{{twitter_url}}" style="color:{{icon_color}};font-size:13px;text-decoration:none;font-weight:500;">Twitter</a></td>
+    <td style="padding:0 8px;border-left:1px solid #DDE3D2;"><a href="{{website_url}}" style="color:{{icon_color}};font-size:13px;text-decoration:none;font-weight:500;">Website</a></td>
+  </tr></table>
 </td></tr>`
     })
   }

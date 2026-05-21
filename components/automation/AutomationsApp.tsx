@@ -10,6 +10,7 @@ import {
   upsertAutomation,
   type StoredAutomation
 } from "@/lib/automation/store";
+import { getTemplateById } from "@/lib/templates";
 import { AutomationsList } from "./AutomationsList";
 import { WorkflowBuilder } from "./WorkflowBuilder";
 
@@ -23,7 +24,27 @@ export function AutomationsApp() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
-    setAutomations(loadAutomations());
+    const list = loadAutomations();
+
+    // If the editor handed off a template via localStorage, auto-create an
+    // automation with a "Send email" step pre-wired to that template.
+    const handoff = localStorage.getItem("arya_automation_template");
+    if (handoff) {
+      localStorage.removeItem("arya_automation_template");
+      const tpl = getTemplateById(handoff);
+      const a = createAutomation();
+      a.name = tpl ? `Send: ${tpl.name}` : "New automation";
+      a.steps = [
+        { type: "send_email", templateId: handoff, subject: "Hello {{employee.first_name}}" }
+      ];
+      const updated = [a, ...list];
+      persistAutomations(updated);
+      setAutomations(updated);
+      setEditingId(a.id);
+      return;
+    }
+
+    setAutomations(list);
   }, []);
 
   const commit = (list: StoredAutomation[]) => {

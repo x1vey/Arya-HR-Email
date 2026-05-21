@@ -49,12 +49,12 @@ export function TestRunModal({ name, trigger, steps, onClose }: TestRunModalProp
         className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl2 bg-white shadow-float"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-brand-pale px-5 py-3">
           <div>
             <h3 className="font-semibold text-ink">Test run · {name}</h3>
             <p className="text-xs text-muted">One sample contact, waits fast-forwarded.</p>
           </div>
-          <button onClick={onClose} className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">
+          <button onClick={onClose} className="rounded-md px-2 py-1 text-sm text-muted hover:bg-brand-light hover:text-ink">
             Close
           </button>
         </div>
@@ -70,7 +70,7 @@ export function TestRunModal({ name, trigger, steps, onClose }: TestRunModalProp
                     <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${dotCls(h)}`}>
                       {dotIcon(h)}
                     </span>
-                    {i < history.length - 1 && <span className="my-1 w-px flex-1 bg-slate-200" />}
+                    {i < history.length - 1 && <span className="my-1 w-px flex-1 bg-brand-pale" />}
                   </div>
                   <div className="pb-1">
                     <div className="text-sm text-ink">{h.detail}</div>
@@ -92,8 +92,8 @@ export function TestRunModal({ name, trigger, steps, onClose }: TestRunModalProp
 
 function dotCls(h: HistoryEntry): string {
   if (h.type === "send_email") return "bg-brand-light text-brand";
-  if (h.type === "wait") return "bg-amber-100 text-amber-600";
-  return "bg-slate-100 text-slate-500";
+  if (h.type === "wait") return "bg-accent-warm/10 text-accent-warm";
+  return "bg-brand-light text-muted";
 }
 function dotIcon(h: HistoryEntry): string {
   if (h.type === "send_email") return "✉";

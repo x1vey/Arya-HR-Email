@@ -1,4 +1,4 @@
-# Arya — HR Email Builder Poc
+# Arya — HR Email Studio
 
 Proof of concept for two core ideas:
 
@@ -18,6 +18,7 @@ npm run automate     # run the automation engine demo in the terminal
 
 ## What's in this POC
 
+- **Soft Sage design system** — earthy green palette (`#4F6B4A` brand, `#F4F6ED` canvas, `#212A20` ink), consistent across editor, automations, landing page, and all modals
 - **15 templates** in `lib/templates/`, each hand-crafted as HTML then converted into a `Template` block tree — five foundational designs plus ten HR "Ori" originals (announcement, policy update, all-hands, etc.). Highlights:
   - `newsletter.ts` — classic email-safe newsletter (FullSphere). All `<table>`-based, inline styles, dark footer.
   - `birthday.ts` — gradient hero, signature on tinted footer.
@@ -25,13 +26,15 @@ npm run automate     # run the automation engine demo in the terminal
   - `cart-abandonment.ts` — modern card design with faux Mac chrome (CSS custom properties, flexbox — modern email clients only).
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
 - **Canva-style email editor** at `/editor`:
-  - Left icon rail with two panels — **Templates** (visual gallery + **Generate with AI** + **Start from scratch** blank canvas), **Elements** (layouts + blocks); merge-tag editing and **Save template** live in the right property panel
-  - **AI email generation** — describe the email you want in plain English, Gemini builds a fully editable block-tree template (wrapper + blocks + variables) optimized for the builder. Prompt suggestions and Ctrl+Enter to generate. API key stored in browser or via `GEMINI_API_KEY` env var
-  - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas** (heading / text / button / image / callout / divider / spacer); a drop indicator shows where it lands. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
+  - Unified **Build** panel — elements, layouts, data sources, and AI generation in one scrollable view; **Gallery** panel for template browsing
+  - **AI email generation** — describe the email you want in plain English; choose from **Gemini**, **Groq**, or **OpenRouter** as AI provider. Prompt suggestions and Ctrl+Enter to generate. API key stored in browser or via env vars (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
+  - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas**: heading / text / button / image / callout / divider / spacer / **signature** / **social links**. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
+  - **Data sources** — CSV file upload with auto-parsing, Airtable connection, CRM integration (HubSpot, Salesforce, Pipedrive, custom). Field mapping editor matches source columns to template merge tags
   - **Hover any section** for a Canva-style action toolbar (move / duplicate / delete) that follows the cursor; clicking selects, and the toolbar stays on the selected block
   - **Double-click-to-edit text in place** — inline editing shows the raw value so merge tags like `{{employee.first_name}}` are preserved instead of baked in
   - **Keyboard shortcuts + undo/redo**: ⌫ delete, ⌘/Ctrl+D duplicate, ⌘/Ctrl+Z / ⌘⇧Z undo-redo, ↑/↓ move, ⌘/Ctrl+C·V copy-paste, Esc deselect (shortcuts work even when focus is in the preview iframe, via key forwarding)
-  - **Import HTML** — paste an existing HTML email and AI converts it into an editable block tree, preserving the visual design
+  - **Import HTML** — paste an existing HTML email and AI converts it into an editable block tree, preserving the visual design (supports all 3 AI providers)
+  - **Automate button** — one click saves the current template and opens the automation builder with a pre-configured "Send email" step
   - **Email settings** in the right panel — subject line, preheader, from name/email, reply-to, unsubscribe URL. Saved with the template
   - **Deliverability score** — real-time spam-word scanner checks all text, punctuation, caps, text-to-image ratio, missing unsubscribe, etc. Shows a 0–100 score with per-issue warnings in the property panel and a badge in the header
   - **Plain text view** — auto-generated text/plain version alongside View HTML, with copy button
@@ -40,6 +43,7 @@ npm run automate     # run the automation engine demo in the terminal
   - "Send test" — POSTs to a stub API route that simulates Gmail Workspace quota tracking
 - **No-code workflow builder** at `/automations`:
   - **Automations dashboard** — create, open, duplicate, and delete multiple workflows; saved to `localStorage` so they persist across reloads (no backend yet)
+  - **Template handoff** — clicking "Automate" in the editor auto-creates a new workflow with the current template pre-selected
   - Vertical node canvas — a trigger plus wait / send-email steps, with inline "+" insert and click-to-edit
   - Friendly trigger presets (employee hired, birthday, work anniversary, manual) with "N days before" timing
   - **Test run** — simulates one sample contact through the flow on a virtual clock and shows the resulting timeline
@@ -56,33 +60,39 @@ npm run automate     # run the automation engine demo in the terminal
 
 ```
 app/
-  page.tsx              landing page
+  page.tsx              landing page (Soft Sage palette)
   editor/page.tsx       editor entry — renders <BlockEditor/>
   automations/page.tsx  automations entry — renders <AutomationsApp/>
   api/send-test/        mock send endpoint (logs + fake quota)
-  api/generate-email/   Gemini-powered email generation endpoint
+  api/generate-email/   AI email generation (Gemini / Groq / OpenRouter)
 components/
-  BlockEditor.tsx       main editor container, holds template state
-  AiGenerateModal.tsx   AI prompt modal — describe email, get a template
+  BlockEditor.tsx       main editor — unified Build + Gallery panels
+  AiGenerateModal.tsx   AI prompt modal — describe email, pick provider
   ImportHtmlModal.tsx   Paste HTML → AI converts to editable blocks
   ElementsPanel.tsx     Elements panel — click-to-add block library
+  DataSourcePanel.tsx   CSV / Airtable / CRM data source management
   TemplateGallery.tsx   Templates panel — visual template picker + AI entry
   PreviewPane.tsx       center — iframe preview, click-to-select + canvas toolbar
   PropertyPanel.tsx     right — prop inputs for the selected block
   automation/
-    AutomationsApp.tsx  container — switches between dashboard and builder
+    AutomationsApp.tsx  container — dashboard ↔ builder, template handoff
     AutomationsList.tsx dashboard of saved automations (create/open/dup/delete)
     WorkflowBuilder.tsx node canvas + header + nav (edits one automation)
     StepInspector.tsx   right-panel editors for trigger / wait / send_email
     TestRunModal.tsx    simulates a contact through the flow, shows timeline
+db/
+  schema.sql            PostgreSQL schema — users, ai_generations, templates,
+                        data_sources, automations, send_log
 lib/
   blocks/
     types.ts            Block, Template, VariableDef
     render.ts           renderTemplate / renderBlock / cloneTemplate
     substitute.ts       {{path.to.value}} placeholder replacement
-    palette.ts          insertable elements + layout presets (Elements panel)
+    palette.ts          elements + layouts (signature, social links blocks)
   ai/
-    generate-email.ts   Gemini system prompt + Template generation logic
+    generate-email.ts   system prompt + multi-provider generation logic
+  data-sources/
+    types.ts            DataSource model, CSV parser, field auto-mapping
   email/
     spam-checker.ts     Deliverability scanner — trigger words, caps, structure
     plain-text.ts       HTML → plain-text converter for multipart emails
@@ -121,7 +131,7 @@ Once the library has ~20 templates this pattern can be partially automated with 
 | Google OAuth + Gmail API transport | `lib/transports/gmail.ts` (next milestone) — plug in behind the `Mailer` interface |
 | Microsoft Graph transport | `lib/transports/microsoft.ts` |
 | Per-identity quota tracking + token-bucket rate limiter | `lib/transports/quota.ts` |
-| Data-source connectors (Sheets, Postgres, HRIS) | `lib/connectors/` |
+| Data-source connectors (live sync — Sheets, Postgres, HRIS) | CSV upload + Airtable + CRM config land in POC; live sync needs `lib/connectors/` |
 | Workflow **persistence + production scheduler** | engine exists (`lib/automation/`); still need to store enrollments and drive `tick()` / `evaluateDateTriggers()` from cron (e.g. Inngest) |
 | Saving workflows + templates server-side | automations persist client-side in `localStorage` (`lib/automation/store.ts`); needs Postgres + Drizzle + CRUD to be multi-device / multi-tenant |
 | Auth + multi-tenant workspaces | Clerk + Postgres + Drizzle |
