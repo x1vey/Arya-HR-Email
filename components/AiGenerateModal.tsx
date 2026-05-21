@@ -11,12 +11,14 @@ interface AiGenerateModalProps {
 }
 
 const SUGGESTIONS = [
-  "Welcome email for new employees with company values and first-day checklist",
-  "Birthday celebration email with colorful design and warm wishes",
-  "Policy update announcement with summary, effective date, and action items",
-  "Monthly newsletter with company news, team spotlight, and upcoming events",
-  "Work anniversary congratulations with milestone badge and team message",
-  "Benefits enrollment reminder with deadline, key changes, and enrollment link",
+  "Birthday",
+  "Welcome new hire",
+  "Policy update",
+  "Newsletter",
+  "Work anniversary",
+  "Benefits enrollment",
+  "Team offsite invite",
+  "Farewell & good luck",
 ];
 
 const STORAGE_KEYS: Record<AiProvider, string> = {
@@ -198,7 +200,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                   disabled={loading}
                   className="rounded-lg border border-brand-pale bg-brand-light/40 px-2.5 py-1.5 text-xs text-ink transition hover:border-brand/40 hover:bg-brand-light disabled:opacity-50"
                 >
-                  {s.length > 50 ? s.slice(0, 50) + "..." : s}
+                  {s}
                 </button>
               ))}
             </div>
