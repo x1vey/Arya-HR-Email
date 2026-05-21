@@ -69,7 +69,6 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
     }
   }, [open]);
 
-  // Sync key when provider changes
   const switchProvider = (p: AiProvider) => {
     setProvider(p);
     setApiKey(localStorage.getItem(STORAGE_KEYS[p]) ?? "");
@@ -92,7 +91,6 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
       localStorage.setItem("arya_ai_context", context.trim());
     }
 
-    // Build full prompt with context prepended
     const fullPrompt = context.trim()
       ? `## Brand & company context (always follow these rules):\n${context.trim()}\n\n## Email request:\n${prompt.trim()}`
       : prompt.trim();
@@ -126,7 +124,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
       onClick={onClose}
     >
       <div
@@ -134,7 +132,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-brand-pale px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient">
               <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-white">
@@ -154,7 +152,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-muted transition hover:bg-brand-light hover:text-ink"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
               <path d="M18 6L6 18M6 6l12 12" />
@@ -178,11 +176,11 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
               placeholder="e.g. A warm welcome email for new hires with company culture highlights, a team photo section, and a first-week checklist..."
               rows={4}
               disabled={loading}
-              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+              className="w-full resize-none rounded-xl border border-brand-pale bg-white px-4 py-3 text-sm leading-relaxed text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
             />
             <p className="text-[11px] text-muted">
               Be specific about the purpose, tone, sections, and any dynamic fields (employee name, dates, etc.).
-              Press <kbd className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium">Ctrl+Enter</kbd> to
+              Press <kbd className="rounded bg-brand-light px-1 py-0.5 text-[10px] font-medium">Ctrl+Enter</kbd> to
               generate.
             </p>
           </div>
@@ -198,7 +196,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                   key={s}
                   onClick={() => setPrompt(s)}
                   disabled={loading}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 transition hover:border-brand/40 hover:bg-brand-light hover:text-brand-dark disabled:opacity-50"
+                  className="rounded-lg border border-brand-pale bg-brand-light/40 px-2.5 py-1.5 text-xs text-ink transition hover:border-brand/40 hover:bg-brand-light disabled:opacity-50"
                 >
                   {s.length > 50 ? s.slice(0, 50) + "..." : s}
                 </button>
@@ -236,7 +234,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                   placeholder={`e.g.\n- Company: Acme Corp, primary color #2563EB, logo at https://...\n- Tone: warm, professional, never salesy\n- Always include the company address in the footer\n- Sign off as "The People Team"`}
                   rows={5}
                   disabled={loading}
-                  className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-ink placeholder:text-slate-400 focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+                  className="w-full resize-y rounded-xl border border-brand-pale bg-canvas px-4 py-3 text-xs leading-relaxed text-ink placeholder:text-muted/60 focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
                 />
                 <p className="text-[10px] text-muted">
                   Brand colors, tone, company name, logo URL, sign-off rules — anything the AI should always follow. Saved in your browser.
@@ -247,12 +245,11 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
 
           {/* Provider + API key */}
           <div className="flex flex-col gap-2">
-            {/* Provider toggle */}
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
                 Provider
               </span>
-              <div className="flex rounded-lg border border-slate-200">
+              <div className="flex rounded-lg border border-brand-pale">
                 {(["gemini", "groq", "openrouter"] as const).map((p, i) => (
                   <button
                     key={p}
@@ -260,8 +257,8 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                     className={`px-3 py-1 text-xs font-medium transition ${
                       provider === p
                         ? "bg-brand-light text-brand-dark"
-                        : "text-slate-500 hover:text-ink"
-                    } ${i === 0 ? "rounded-l-md" : "border-l border-slate-200"} ${i === 2 ? "rounded-r-md" : ""}`}
+                        : "text-muted hover:text-ink"
+                    } ${i === 0 ? "rounded-l-md" : "border-l border-brand-pale"} ${i === 2 ? "rounded-r-md" : ""}`}
                   >
                     {PROVIDER_META[p].label}
                   </button>
@@ -270,7 +267,6 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
               <span className="text-[10px] text-muted">{meta.sub}</span>
             </div>
 
-            {/* Key input */}
             <div className="flex flex-col gap-1.5">
               <button
                 onClick={() => setShowKeyInput(!showKeyInput)}
@@ -294,7 +290,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder={meta.placeholder}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-ink placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                    className="w-full rounded-lg border border-brand-pale bg-white px-3 py-2 text-xs text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                   />
                   <p className="text-[10px] text-muted">
                     Get a key at{" "}
@@ -321,18 +317,18 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-brand-pale px-6 py-4">
           <button
             onClick={onClose}
             disabled={loading}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-brand-pale px-4 py-2 text-sm font-medium text-muted transition hover:bg-brand-light disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleGenerate}
             disabled={!prompt.trim() || loading}
-            className="flex items-center gap-2 rounded-lg bg-brand-gradient px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-brand-gradient px-5 py-2 text-sm font-semibold text-white shadow-soft transition hover:opacity-90 disabled:opacity-50"
           >
             {loading ? (
               <>

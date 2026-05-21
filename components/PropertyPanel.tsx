@@ -83,7 +83,7 @@ export function PropertyPanel({
         )}
 
         {/* ── Email settings ── */}
-        <div className="border-t border-slate-200 px-4 py-3">
+        <div className="border-t border-brand-pale px-4 py-3">
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted"
@@ -95,7 +95,9 @@ export function PropertyPanel({
               </svg>
               Email settings
             </span>
-            <span className="text-base">{showSettings ? "−" : "+"}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition ${showSettings ? "rotate-180" : ""}`}>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
           </button>
           {showSettings && (
             <div className="mt-3 flex flex-col gap-2.5">
@@ -141,7 +143,7 @@ export function PropertyPanel({
 
         {/* ── Deliverability score ── */}
         {spamResult && (
-          <div className="border-t border-slate-200 px-4 py-3">
+          <div className="border-t border-brand-pale px-4 py-3">
             <button
               onClick={() => setShowSpam(!showSpam)}
               className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted"
@@ -173,13 +175,14 @@ export function PropertyPanel({
                     : "Issues"}
                 </span>
               </span>
-              <span className="text-base">{showSpam ? "−" : "+"}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition ${showSpam ? "rotate-180" : ""}`}>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
             {showSpam && (
               <div className="mt-3 flex flex-col gap-2">
-                {/* Score bar */}
                 <div className="flex items-center gap-2">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-brand-light">
                     <div
                       className={`h-full rounded-full transition-all ${
                         spamResult.rating === "good"
@@ -191,7 +194,7 @@ export function PropertyPanel({
                       style={{ width: `${Math.max(4, 100 - spamResult.score)}%` }}
                     />
                   </div>
-                  <span className="text-xs font-medium text-slate-500">
+                  <span className="text-xs font-medium text-muted">
                     {100 - spamResult.score}/100
                   </span>
                 </div>
@@ -210,11 +213,11 @@ export function PropertyPanel({
                             ? "bg-red-50 text-red-700"
                             : w.weight >= 4
                             ? "bg-amber-50 text-amber-700"
-                            : "bg-slate-50 text-slate-600"
+                            : "bg-brand-light text-muted"
                         }`}
                       >
                         <span className="mt-0.5 shrink-0">
-                          {w.weight >= 8 ? "⚠" : w.weight >= 4 ? "○" : "•"}
+                          {w.weight >= 8 ? "!" : w.weight >= 4 ? "~" : "-"}
                         </span>
                         {w.message}
                       </div>
@@ -233,23 +236,25 @@ export function PropertyPanel({
 
         {/* ── Merge tags ── */}
         {variables.length > 0 && (
-          <div className="border-t border-slate-200 px-4 py-3">
+          <div className="border-t border-brand-pale px-4 py-3">
             <button
               onClick={() => setShowVars(!showVars)}
               className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted"
             >
               <span>Merge tags ({variables.length})</span>
-              <span className="text-base">{showVars ? "−" : "+"}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition ${showVars ? "rotate-180" : ""}`}>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
             {showVars && (
               <div className="mt-3 flex flex-col gap-2.5">
                 <p className="text-[11px] leading-relaxed text-muted">
                   Preview values — replaced per recipient when you send.
-                  Use <code className="rounded bg-slate-100 px-1 text-[10px]">{`{{key}}`}</code> in any text field.
+                  Use <code className="rounded bg-brand-light px-1 text-[10px]">{`{{key}}`}</code> in any text field.
                 </p>
                 {variables.map((v) => (
                   <label key={v.key} className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-ink">
                       {v.label}
                       <code className="rounded bg-brand-light px-1 py-0.5 text-[10px] text-brand">{`{{${v.key}}}`}</code>
                     </span>
@@ -257,7 +262,7 @@ export function PropertyPanel({
                       type="text"
                       value={variableValues[v.key] ?? ""}
                       onChange={(e) => onVariableChange(v.key, e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                      className="w-full rounded-lg border border-brand-pale bg-white px-3 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
                     />
                   </label>
                 ))}
@@ -268,7 +273,7 @@ export function PropertyPanel({
       </div>
 
       {/* ── Save template ── */}
-      <div className="border-t border-slate-200 p-4">
+      <div className="border-t border-brand-pale p-4">
         {showSave ? (
           <div className="flex flex-col gap-2">
             <input
@@ -287,7 +292,7 @@ export function PropertyPanel({
                   setSaveName("");
                 }
               }}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              className="w-full rounded-lg border border-brand-pale bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
             />
             <div className="flex gap-2">
               <button
@@ -305,7 +310,7 @@ export function PropertyPanel({
               </button>
               <button
                 onClick={() => { setShowSave(false); setSaveName(""); }}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-brand-pale px-3 py-2 text-sm text-muted hover:bg-brand-light"
               >
                 Cancel
               </button>
@@ -314,7 +319,7 @@ export function PropertyPanel({
         ) : (
           <button
             onClick={() => { setShowSave(true); setSaveName(templateName); }}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2 text-sm font-medium text-ink transition hover:border-brand/50 hover:text-brand"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-brand-pale bg-white py-2 text-sm font-medium text-ink transition hover:border-brand/50 hover:text-brand"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
               <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
@@ -344,13 +349,13 @@ function SettingsInput({
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-ink">{label}</span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+        className="w-full rounded-lg border border-brand-pale bg-white px-3 py-1.5 text-sm placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
       />
     </label>
   );
@@ -370,11 +375,11 @@ function PropertyInput({
   onChange: (v: string) => void;
 }) {
   const baseInputCls =
-    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
+    "w-full rounded-lg border border-brand-pale bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-ink">{label}</span>
 
       {type === "longtext" && (
         <textarea
@@ -416,7 +421,7 @@ function PropertyInput({
             <img
               src={value}
               alt="preview"
-              className="h-20 w-full rounded border border-slate-200 object-cover"
+              className="h-20 w-full rounded border border-brand-pale object-cover"
             />
           )}
         </div>
@@ -428,7 +433,7 @@ function PropertyInput({
             type="color"
             value={normalizeHex(value)}
             onChange={(e) => onChange(e.target.value)}
-            className="h-9 w-12 cursor-pointer rounded border border-slate-200"
+            className="h-9 w-12 cursor-pointer rounded border border-brand-pale"
           />
           <input
             type="text"
@@ -448,7 +453,7 @@ function PropertyInput({
               className={`flex-1 rounded-lg border px-3 py-2 text-sm capitalize transition ${
                 value === opt
                   ? "border-brand bg-brand-light text-brand-dark"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  : "border-brand-pale bg-white text-muted hover:border-brand/40"
               }`}
             >
               {opt}

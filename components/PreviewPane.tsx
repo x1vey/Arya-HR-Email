@@ -18,24 +18,12 @@ interface PreviewPaneProps {
   selectedBlockId: string | null;
   onSelectBlock: (id: string) => void;
   onAction: (action: BlockAction, blockId: string) => void;
-  /** A palette element was dropped on the canvas, before/after a block. */
   onPaletteDrop: (targetId: string | null, position: "before" | "after") => void;
-  /** A keyboard shortcut fired while focus was inside the preview iframe. */
   onCanvasKey: (k: CanvasKey) => void;
-  /** Inline edit committed on the canvas: set this block prop to this value. */
   onEditProp: (blockId: string, propKey: string, value: string) => void;
-  /** True while a palette element is being dragged (highlights the canvas). */
   dropActive: boolean;
 }
 
-/**
- * Renders the full email inside an isolated iframe so its CSS doesn't bleed
- * into the editor chrome. The renderer marks each block's outer element
- * with `data-block-id`, so click-to-select works for arbitrary HTML. The
- * selected block gets a floating toolbar; the iframe also reports drag-drop
- * of new elements and forwards keyboard shortcuts to the parent (key events
- * inside an iframe don't reach the parent window otherwise).
- */
 export function PreviewPane({
   template,
   variables,
@@ -49,16 +37,11 @@ export function PreviewPane({
 }: PreviewPaneProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  /** Ordered id + locked flag for every block, so the in-iframe toolbar can
-   *  work out move-up/down availability and delete permission for any block
-   *  it hovers — not just the selected one. */
   const blocksMeta = useMemo(
     () => template.blocks.map((b) => ({ id: b.id, locked: Boolean(b.locked) })),
     [template.blocks]
   );
 
-  /** Raw (un-substituted) values for every inline-editable prop, keyed
-   *  "blockId::propKey" — so editing shows merge tags, not filled-in text. */
   const editableValues = useMemo(() => {
     const map: Record<string, string> = {};
     for (const b of template.blocks) {
@@ -102,17 +85,17 @@ export function PreviewPane({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 text-xs text-muted">
-        <span>Click to select · double-click text to edit · drag elements in · ⌫ delete · ⌘Z undo</span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">600px · email-safe</span>
+      <div className="flex items-center justify-between border-b border-brand-pale bg-white px-4 py-2 text-xs text-muted">
+        <span>Click to select &middot; double-click text to edit &middot; drag elements in &middot; Del delete &middot; Ctrl+Z undo</span>
+        <span className="rounded-full bg-brand-light px-2 py-0.5 font-medium text-brand-dark">600px &middot; email-safe</span>
       </div>
-      <div className="flex-1 overflow-auto bg-[#E9E6F5] p-8">
+      <div className="flex-1 overflow-auto bg-[#E8EBE0] p-8">
         <iframe
           ref={iframeRef}
           title="Email preview"
           srcDoc={html}
           className={`mx-auto block h-[calc(100vh-180px)] w-full max-w-[680px] rounded-xl2 border bg-white shadow-float transition ${
-            dropActive ? "border-brand ring-2 ring-brand" : "border-slate-200"
+            dropActive ? "border-brand ring-2 ring-brand" : "border-brand-pale"
           }`}
         />
       </div>
@@ -125,12 +108,6 @@ interface BlockMeta {
   locked: boolean;
 }
 
-/**
- * Inject the in-iframe behaviour: click-to-select, a Canva-style action
- * toolbar that follows the hovered (or selected) block, double-click text
- * editing, drag-and-drop insertion with a drop indicator, and keyboard-
- * shortcut forwarding.
- */
 function decorateForSelection(
   html: string,
   selectedId: string | null,
@@ -154,10 +131,9 @@ function decorateForSelection(
       (disabled ? 'rgba(255,255,255,0.35)' : '#fff') + ';">' + label + '</button>';
   }
 
-  // ── reusable action toolbar (follows hover / selection) ──
   var bar = document.createElement('div');
   bar.id = '__arya_toolbar';
-  bar.style.cssText = 'position:absolute;z-index:2147483647;display:none;gap:2px;padding:3px;background:#15112B;border-radius:9px;box-shadow:0 4px 16px rgba(0,0,0,0.25);';
+  bar.style.cssText = 'position:absolute;z-index:2147483647;display:none;gap:2px;padding:3px;background:#212A20;border-radius:9px;box-shadow:0 4px 16px rgba(0,0,0,0.25);';
   var barFor = null, hideTimer = null;
 
   function showToolbarFor(id) {
@@ -166,10 +142,10 @@ function decorateForSelection(
     var i = indexOf(id);
     var m = META[i] || { locked: false };
     var h = '';
-    h += makeBtn('↑', 'Move up', 'up', i <= 0);
-    h += makeBtn('↓', 'Move down', 'down', i >= META.length - 1);
-    h += makeBtn('⧉', 'Duplicate', 'duplicate', false);
-    if (!m.locked) h += makeBtn('🗑', 'Delete', 'delete', false);
+    h += makeBtn('\\u2191', 'Move up', 'up', i <= 0);
+    h += makeBtn('\\u2193', 'Move down', 'down', i >= META.length - 1);
+    h += makeBtn('\\u29C9', 'Duplicate', 'duplicate', false);
+    if (!m.locked) h += makeBtn('\\u2715', 'Delete', 'delete', false);
     bar.innerHTML = h;
     var rect = el.getBoundingClientRect();
     var top = rect.top + window.scrollY - 36;
@@ -204,9 +180,8 @@ function decorateForSelection(
     return null;
   }
 
-  // ── drop indicator for drag-to-add ──
   var line = document.createElement('div');
-  line.style.cssText = 'position:absolute;height:3px;background:#7C3AED;border-radius:2px;z-index:2147483646;display:none;pointer-events:none;';
+  line.style.cssText = 'position:absolute;height:3px;background:#4F6B4A;border-radius:2px;z-index:2147483646;display:none;pointer-events:none;';
   var dropTarget = null, dropPos = 'after';
   function showLine(rect, before) {
     line.style.display = 'block';
@@ -233,7 +208,6 @@ function decorateForSelection(
     dropTarget = null;
   }
 
-  // ── inline text editing (double-click to edit in place) ──
   function startEdit(span) {
     if (editing) return;
     editing = span;
@@ -269,14 +243,16 @@ function decorateForSelection(
     });
   }
 
-  // ── keyboard shortcut forwarding ──
+  // FIX: Forward Delete/Backspace from toolbar buttons too
   var SHORTCUT_KEYS = ['Delete','Backspace','ArrowUp','ArrowDown','Escape'];
   function onKeyDown(e) {
     if (document.activeElement && document.activeElement.isContentEditable) return;
     var mod = e.metaKey || e.ctrlKey;
     var k = e.key.toLowerCase();
     var isModShortcut = mod && (k==='z'||k==='y'||k==='d'||k==='c'||k==='v');
-    if (SHORTCUT_KEYS.indexOf(e.key) !== -1 || isModShortcut) {
+    // FIX: Always forward Delete/Backspace even from button focus
+    var isDelete = e.key === 'Delete' || e.key === 'Backspace';
+    if (isDelete || SHORTCUT_KEYS.indexOf(e.key) !== -1 || isModShortcut) {
       e.preventDefault();
       window.parent.postMessage({ type: 'key', key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey }, '*');
     }
@@ -288,10 +264,10 @@ function decorateForSelection(
       var blockId = el.getAttribute('data-block-id');
       el.style.cursor = 'pointer';
       el.style.transition = 'outline 0.12s';
-      if (blockId === selectedId) { el.style.outline = '2px solid #7C3AED'; el.style.outlineOffset = '-2px'; }
+      if (blockId === selectedId) { el.style.outline = '2px solid #4F6B4A'; el.style.outlineOffset = '-2px'; }
       el.addEventListener('mouseenter', function() {
         clearTimeout(hideTimer);
-        if (blockId !== selectedId) { el.style.outline = '2px solid #C4B5FD'; el.style.outlineOffset = '-2px'; }
+        if (blockId !== selectedId) { el.style.outline = '2px solid #CFDCC4'; el.style.outlineOffset = '-2px'; }
         showToolbarFor(blockId);
       });
       el.addEventListener('mouseleave', function() {
@@ -305,7 +281,7 @@ function decorateForSelection(
     });
 
     var st = document.createElement('style');
-    st.textContent = '[data-arya-edit]{cursor:text;border-radius:3px;transition:box-shadow .12s;} [data-arya-edit]:hover{box-shadow:inset 0 0 0 1px #C4B5FD;} [data-arya-edit][contenteditable="true"]{outline:2px solid #7C3AED;outline-offset:2px;background:rgba(124,58,237,0.06);cursor:text;}';
+    st.textContent = '[data-arya-edit]{cursor:text;border-radius:3px;transition:box-shadow .12s;} [data-arya-edit]:hover{box-shadow:inset 0 0 0 1px #CFDCC4;} [data-arya-edit][contenteditable="true"]{outline:2px solid #4F6B4A;outline-offset:2px;background:rgba(79,107,74,0.06);cursor:text;}';
     document.head.appendChild(st);
     document.querySelectorAll('[data-arya-edit]').forEach(wireEditable);
 
@@ -319,8 +295,6 @@ function decorateForSelection(
     document.addEventListener('keydown', onKeyDown);
   }
 
-  // Kill ALL link navigation in the editor canvas — clicks should select
-  // blocks, never follow hrefs. Capture phase fires before any handler.
   document.addEventListener('click', function(e) {
     var a = e.target.closest ? e.target.closest('a[href]') : null;
     if (a && !a.closest('#__arya_toolbar')) { e.preventDefault(); }

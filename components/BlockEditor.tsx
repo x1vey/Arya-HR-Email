@@ -13,10 +13,11 @@ import { PropertyPanel } from "./PropertyPanel";
 import { PreviewPane, type BlockAction, type CanvasKey } from "./PreviewPane";
 import { ElementsPanel } from "./ElementsPanel";
 import { TemplateGallery } from "./TemplateGallery";
+import { DataSourcePanel } from "./DataSourcePanel";
 import { AiGenerateModal } from "./AiGenerateModal";
 import { ImportHtmlModal } from "./ImportHtmlModal";
 
-type Tab = "templates" | "elements";
+type Tab = "templates" | "elements" | "data";
 
 // ── template history (undo/redo) ──────────────────────────────────────────────
 
@@ -331,6 +332,8 @@ export function BlockEditor() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      // FIX: Also skip if inside a button (Delete key should propagate in buttons)
+      // Actually, we WANT Delete to work even if a button is focused, except form fields
       if (runShortcut({ key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey })) {
         e.preventDefault();
       }
@@ -392,7 +395,7 @@ export function BlockEditor() {
   return (
     <div className="flex h-screen flex-col bg-canvas">
       {/* Top toolbar */}
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5">
+      <header className="flex items-center justify-between border-b border-brand-pale bg-white px-4 py-2.5">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-sm font-bold text-white">
             A
@@ -401,7 +404,7 @@ export function BlockEditor() {
             <div className="text-sm font-semibold text-ink">Arya</div>
             <div className="text-[11px] text-muted">Email Studio</div>
           </div>
-          <span className="ml-2 rounded-full bg-brand-light px-2 py-0.5 text-[10px] font-semibold text-brand-dark">
+          <span className="ml-2 rounded-full bg-brand-light px-2.5 py-0.5 text-[10px] font-semibold text-brand-dark">
             {template.name}
           </span>
           {/* Deliverability badge */}
@@ -416,45 +419,53 @@ export function BlockEditor() {
               }`}
               title={`Deliverability: ${100 - spamResult.score}/100 — ${spamResult.warnings.length} issues`}
             >
-              {spamResult.rating === "good" ? "✓ " : spamResult.rating === "warning" ? "⚠ " : "✕ "}
-              {100 - spamResult.score}/100
+              {spamResult.rating === "good" ? "Good" : spamResult.rating === "warning" ? "Check" : "Issues"}{" "}
+              {100 - spamResult.score}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           <div className="mr-1 flex items-center gap-1">
-            <HeaderIcon label="Undo (⌘Z)" disabled={history.past.length === 0} onClick={undo}>↶</HeaderIcon>
-            <HeaderIcon label="Redo (⌘⇧Z)" disabled={history.future.length === 0} onClick={redo}>↷</HeaderIcon>
+            <HeaderIcon label="Undo (Ctrl+Z)" disabled={history.past.length === 0} onClick={undo}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                <path d="M3 10h13a4 4 0 010 8H7" /><path d="M3 10l4-4M3 10l4 4" />
+              </svg>
+            </HeaderIcon>
+            <HeaderIcon label="Redo (Ctrl+Shift+Z)" disabled={history.future.length === 0} onClick={redo}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                <path d="M21 10H8a4 4 0 000 8h9" /><path d="M21 10l-4-4M21 10l-4 4" />
+              </svg>
+            </HeaderIcon>
           </div>
           <button
             onClick={() => setShowImportModal(true)}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition hover:bg-brand-light hover:text-brand"
             title="Import HTML email"
           >
             Import
           </button>
           <Link
             href="/automations"
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-brand"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted transition hover:bg-brand-light hover:text-brand"
           >
             Automations
           </Link>
           <button
             onClick={() => setShowPlainText(true)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300"
+            className="rounded-lg border border-brand-pale bg-white px-3 py-1.5 text-sm font-medium text-ink transition hover:border-brand/40"
             title="Plain text version"
           >
             Plain text
           </button>
           <button
             onClick={() => setShowFinalHtml(true)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300"
+            className="rounded-lg border border-brand-pale bg-white px-3 py-1.5 text-sm font-medium text-ink transition hover:border-brand/40"
           >
             View HTML
           </button>
           <button
             onClick={handleMockSend}
-            className="rounded-lg bg-brand-gradient px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            className="rounded-lg bg-brand-gradient px-4 py-1.5 text-sm font-semibold text-white shadow-soft transition hover:opacity-90"
           >
             Send test
           </button>
@@ -465,7 +476,7 @@ export function BlockEditor() {
       <div className="flex flex-1 overflow-hidden">
         <IconRail active={activeTab} onChange={setActiveTab} />
 
-        <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4">
+        <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-brand-pale bg-white p-4">
           {activeTab === "templates" && (
             <TemplateGallery
               templates={TEMPLATE_LIBRARY}
@@ -480,6 +491,13 @@ export function BlockEditor() {
               onAddLayout={addLayout}
               onDragStart={startDrag}
               onDragEnd={endDrag}
+            />
+          )}
+          {activeTab === "data" && (
+            <DataSourcePanel
+              variables={template.variables}
+              variableValues={variableValues}
+              onVariableChange={updateVariable}
             />
           )}
         </aside>
@@ -498,7 +516,7 @@ export function BlockEditor() {
           />
         </main>
 
-        <aside className="w-[320px] shrink-0 border-l border-slate-200 bg-white">
+        <aside className="w-[320px] shrink-0 border-l border-brand-pale bg-white">
           <PropertyPanel
             block={selectedBlock}
             onChange={updateProp}
@@ -538,8 +556,8 @@ function HeaderIcon({ children, label, onClick, disabled }: { children: React.Re
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-8 w-8 items-center justify-center rounded-lg text-base transition ${
-        disabled ? "cursor-not-allowed text-slate-300" : "text-slate-600 hover:bg-slate-100"
+      className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
+        disabled ? "cursor-not-allowed text-brand-pale" : "text-muted hover:bg-brand-light hover:text-brand"
       }`}
     >
       {children}
@@ -560,19 +578,24 @@ const RAIL_TABS: { tab: Tab; label: string; icon: string }[] = [
     label: "Elements",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="4"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><path d="M3 16l4 5 4-5z"/><rect x="13" y="14" width="8" height="7" rx="1.5"/></svg>`,
   },
+  {
+    tab: "data",
+    label: "Data",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>`,
+  },
 ];
 
 function IconRail({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   return (
-    <nav className="flex w-[76px] shrink-0 flex-col items-center gap-1 bg-rail py-3">
+    <nav className="flex w-[72px] shrink-0 flex-col items-center gap-1 bg-rail py-3">
       {RAIL_TABS.map(({ tab, label, icon }) => {
         const on = tab === active;
         return (
           <button
             key={tab}
             onClick={() => onChange(tab)}
-            className={`flex w-[60px] flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition ${
-              on ? "bg-white/10 text-white" : "text-white/55 hover:bg-white/5 hover:text-white/90"
+            className={`flex w-[56px] flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-medium transition ${
+              on ? "bg-white/12 text-white" : "text-white/50 hover:bg-white/5 hover:text-white/80"
             }`}
           >
             <span className="[&_svg]:h-5 [&_svg]:w-5" dangerouslySetInnerHTML={{ __html: icon }} />
@@ -597,9 +620,9 @@ function CodeModal({ title, subtitle, code, onClose }: { title: string; subtitle
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={onClose}>
       <div className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-xl2 bg-white shadow-float" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-brand-pale px-4 py-3">
           <div>
             <h3 className="font-semibold text-ink">{title}</h3>
             <p className="text-xs text-muted">{subtitle}</p>
@@ -607,16 +630,16 @@ function CodeModal({ title, subtitle, code, onClose }: { title: string; subtitle
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
-              className="rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 transition hover:bg-slate-50"
+              className="rounded-md border border-brand-pale px-3 py-1 text-sm text-ink transition hover:bg-brand-light"
             >
               {copied ? "Copied!" : "Copy"}
             </button>
-            <button onClick={onClose} className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">
+            <button onClick={onClose} className="rounded-md px-2 py-1 text-sm text-muted hover:bg-brand-light">
               Close
             </button>
           </div>
         </div>
-        <pre className="flex-1 overflow-auto bg-slate-50 p-4 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+        <pre className="flex-1 overflow-auto bg-canvas p-4 text-xs leading-relaxed text-ink whitespace-pre-wrap">
           {code}
         </pre>
       </div>
