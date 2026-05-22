@@ -17,9 +17,9 @@ const FEATURES = [
     desc: "Paste any existing HTML email and the AI reverse-engineers it into editable blocks you can customize.",
   },
   {
-    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>`,
-    title: "Data sources",
-    desc: "Pull recipient data from a CSV upload, Airtable base, or CRM. Map fields to merge tags automatically.",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><path d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>`,
+    title: "Custom values",
+    desc: "GHL-style reusable placeholders for company details, sender info, and links. Set once, use everywhere. Unsubscribe is just a custom value.",
   },
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,

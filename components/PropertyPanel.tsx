@@ -1,38 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { Block, PropType, VariableDef, EmailSettings } from "@/lib/blocks/types";
+import type { Block, PropType } from "@/lib/blocks/types";
 import type { SpamResult } from "@/lib/email/spam-checker";
 
 interface PropertyPanelProps {
   block: Block | null;
   onChange: (blockId: string, propKey: string, value: string) => void;
-  variables: VariableDef[];
-  variableValues: Record<string, string>;
-  onVariableChange: (key: string, value: string) => void;
   onSaveTemplate: (name: string) => void;
   templateName: string;
-  emailSettings: EmailSettings;
-  onSettingsChange: (key: keyof EmailSettings, value: string) => void;
   spamResult: SpamResult | null;
 }
 
 export function PropertyPanel({
   block,
   onChange,
-  variables,
-  variableValues,
-  onVariableChange,
   onSaveTemplate,
   templateName,
-  emailSettings,
-  onSettingsChange,
   spamResult,
 }: PropertyPanelProps) {
-  const [showVars, setShowVars] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [showSave, setShowSave] = useState(false);
-  const [showSettings, setShowSettings] = useState(true);
   const [showSpam, setShowSpam] = useState(false);
 
   return (
@@ -48,9 +36,11 @@ export function PropertyPanel({
                 </div>
                 <h3 className="text-base font-semibold text-ink">{block.label}</h3>
               </div>
-              <span className="rounded-full bg-brand-light px-2 py-0.5 text-[10px] font-medium text-brand">
-                Selected
-              </span>
+              {block.locked && (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                  Locked
+                </span>
+              )}
             </div>
             <div className="flex flex-col gap-3">
               {Object.entries(block.propTypes).map(([key, type]) => (
@@ -82,65 +72,6 @@ export function PropertyPanel({
           </div>
         )}
 
-        {/* ── Email settings ── */}
-        <div className="border-t border-brand-pale px-4 py-3">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted"
-          >
-            <span className="flex items-center gap-1.5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
-              Email settings
-            </span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition ${showSettings ? "rotate-180" : ""}`}>
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          {showSettings && (
-            <div className="mt-3 flex flex-col gap-2.5">
-              <SettingsInput
-                label="Subject line"
-                placeholder="e.g. Welcome to {{company.name}}!"
-                value={emailSettings.subject}
-                onChange={(v) => onSettingsChange("subject", v)}
-              />
-              <SettingsInput
-                label="Preheader"
-                placeholder="Preview text shown in inbox (optional)"
-                value={emailSettings.preheader}
-                onChange={(v) => onSettingsChange("preheader", v)}
-              />
-              <SettingsInput
-                label="From name"
-                placeholder="e.g. People Ops Team"
-                value={emailSettings.from_name}
-                onChange={(v) => onSettingsChange("from_name", v)}
-              />
-              <SettingsInput
-                label="From email"
-                placeholder="e.g. hr@yourcompany.com"
-                value={emailSettings.from_email}
-                onChange={(v) => onSettingsChange("from_email", v)}
-              />
-              <SettingsInput
-                label="Reply-to"
-                placeholder="e.g. hr@yourcompany.com"
-                value={emailSettings.reply_to}
-                onChange={(v) => onSettingsChange("reply_to", v)}
-              />
-              <SettingsInput
-                label="Unsubscribe URL"
-                placeholder="https://yoursite.com/unsubscribe"
-                value={emailSettings.unsubscribe_url}
-                onChange={(v) => onSettingsChange("unsubscribe_url", v)}
-              />
-            </div>
-          )}
-        </div>
-
         {/* ── Deliverability score ── */}
         {spamResult && (
           <div className="border-t border-brand-pale px-4 py-3">
@@ -168,11 +99,7 @@ export function PropertyPanel({
                       : "bg-red-50 text-red-700"
                   }`}
                 >
-                  {spamResult.rating === "good"
-                    ? "Good"
-                    : spamResult.rating === "warning"
-                    ? "Check"
-                    : "Issues"}
+                  {spamResult.rating === "good" ? "Good" : spamResult.rating === "warning" ? "Check" : "Issues"}
                 </span>
               </span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition ${showSpam ? "rotate-180" : ""}`}>
@@ -185,87 +112,33 @@ export function PropertyPanel({
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-brand-light">
                     <div
                       className={`h-full rounded-full transition-all ${
-                        spamResult.rating === "good"
-                          ? "bg-green-500"
-                          : spamResult.rating === "warning"
-                          ? "bg-amber-500"
-                          : "bg-red-500"
+                        spamResult.rating === "good" ? "bg-green-500" : spamResult.rating === "warning" ? "bg-amber-500" : "bg-red-500"
                       }`}
                       style={{ width: `${Math.max(4, 100 - spamResult.score)}%` }}
                     />
                   </div>
-                  <span className="text-xs font-medium text-muted">
-                    {100 - spamResult.score}/100
-                  </span>
+                  <span className="text-xs font-medium text-muted">{100 - spamResult.score}/100</span>
                 </div>
-
                 {spamResult.warnings.length === 0 ? (
-                  <p className="text-[11px] text-green-600">
-                    No deliverability issues found. Your email looks clean.
-                  </p>
+                  <p className="text-[11px] text-green-600">No deliverability issues found. Your email looks clean.</p>
                 ) : (
                   <div className="flex flex-col gap-1.5">
                     {spamResult.warnings.slice(0, 8).map((w, i) => (
                       <div
                         key={i}
                         className={`flex items-start gap-1.5 rounded-md px-2 py-1.5 text-[11px] leading-relaxed ${
-                          w.weight >= 8
-                            ? "bg-red-50 text-red-700"
-                            : w.weight >= 4
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-brand-light text-muted"
+                          w.weight >= 8 ? "bg-red-50 text-red-700" : w.weight >= 4 ? "bg-amber-50 text-amber-700" : "bg-brand-light text-muted"
                         }`}
                       >
-                        <span className="mt-0.5 shrink-0">
-                          {w.weight >= 8 ? "!" : w.weight >= 4 ? "~" : "-"}
-                        </span>
+                        <span className="mt-0.5 shrink-0">{w.weight >= 8 ? "!" : w.weight >= 4 ? "~" : "-"}</span>
                         {w.message}
                       </div>
                     ))}
                     {spamResult.warnings.length > 8 && (
-                      <p className="text-[10px] text-muted">
-                        +{spamResult.warnings.length - 8} more issues
-                      </p>
+                      <p className="text-[10px] text-muted">+{spamResult.warnings.length - 8} more issues</p>
                     )}
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Merge tags ── */}
-        {variables.length > 0 && (
-          <div className="border-t border-brand-pale px-4 py-3">
-            <button
-              onClick={() => setShowVars(!showVars)}
-              className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted"
-            >
-              <span>Merge tags ({variables.length})</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition ${showVars ? "rotate-180" : ""}`}>
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            {showVars && (
-              <div className="mt-3 flex flex-col gap-2.5">
-                <p className="text-[11px] leading-relaxed text-muted">
-                  Preview values — replaced per recipient when you send.
-                  Use <code className="rounded bg-brand-light px-1 text-[10px]">{`{{key}}`}</code> in any text field.
-                </p>
-                {variables.map((v) => (
-                  <label key={v.key} className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-ink">
-                      {v.label}
-                      <code className="rounded bg-brand-light px-1 py-0.5 text-[10px] text-brand">{`{{${v.key}}}`}</code>
-                    </span>
-                    <input
-                      type="text"
-                      value={variableValues[v.key] ?? ""}
-                      onChange={(e) => onVariableChange(v.key, e.target.value)}
-                      className="w-full rounded-lg border border-brand-pale bg-white px-3 py-1.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-                    />
-                  </label>
-                ))}
               </div>
             )}
           </div>
@@ -296,13 +169,7 @@ export function PropertyPanel({
             />
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  if (saveName.trim()) {
-                    onSaveTemplate(saveName.trim());
-                    setShowSave(false);
-                    setSaveName("");
-                  }
-                }}
+                onClick={() => { if (saveName.trim()) { onSaveTemplate(saveName.trim()); setShowSave(false); setSaveName(""); } }}
                 disabled={!saveName.trim()}
                 className="flex-1 rounded-lg bg-brand-gradient py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               >
@@ -336,114 +203,27 @@ export function PropertyPanel({
 
 /* ── Sub-components ── */
 
-function SettingsInput({
-  label,
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-xs font-medium text-ink">{label}</span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-brand-pale bg-white px-3 py-1.5 text-sm placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-      />
-    </label>
-  );
-}
-
-function PropertyInput({
-  label,
-  propKey,
-  type,
-  value,
-  onChange,
-}: {
-  label: string;
-  propKey: string;
-  type: PropType;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const baseInputCls =
-    "w-full rounded-lg border border-brand-pale bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
+function PropertyInput({ label, propKey, type, value, onChange }: { label: string; propKey: string; type: PropType; value: string; onChange: (v: string) => void }) {
+  const baseCls = "w-full rounded-lg border border-brand-pale bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-ink">{label}</span>
-
-      {type === "longtext" && (
-        <textarea
-          className={`${baseInputCls} min-h-[80px] resize-y`}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-
-      {type === "text" && (
-        <input
-          type="text"
-          className={baseInputCls}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-
-      {type === "link_url" && (
-        <input
-          type="text"
-          className={baseInputCls}
-          value={value}
-          placeholder={`https://… or {{links.something}}`}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-
+      {type === "longtext" && <textarea className={`${baseCls} min-h-[80px] resize-y`} value={value} onChange={(e) => onChange(e.target.value)} />}
+      {type === "text" && <input type="text" className={baseCls} value={value} onChange={(e) => onChange(e.target.value)} />}
+      {type === "link_url" && <input type="text" className={baseCls} value={value} placeholder="https://... or {{custom.key}}" onChange={(e) => onChange(e.target.value)} />}
       {type === "image_url" && (
         <div className="flex flex-col gap-2">
-          <input
-            type="text"
-            className={baseInputCls}
-            value={value}
-            placeholder="https://…"
-            onChange={(e) => onChange(e.target.value)}
-          />
-          {value && (
-            <img
-              src={value}
-              alt="preview"
-              className="h-20 w-full rounded border border-brand-pale object-cover"
-            />
-          )}
+          <input type="text" className={baseCls} value={value} placeholder="https://..." onChange={(e) => onChange(e.target.value)} />
+          {value && <img src={value} alt="preview" className="h-20 w-full rounded border border-brand-pale object-cover" />}
         </div>
       )}
-
       {type === "color" && (
         <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={normalizeHex(value)}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-9 w-12 cursor-pointer rounded border border-brand-pale"
-          />
-          <input
-            type="text"
-            className={`${baseInputCls} flex-1`}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-          />
+          <input type="color" value={normalizeHex(value)} onChange={(e) => onChange(e.target.value)} className="h-9 w-12 cursor-pointer rounded border border-brand-pale" />
+          <input type="text" className={`${baseCls} flex-1`} value={value} onChange={(e) => onChange(e.target.value)} />
         </div>
       )}
-
       {type === "alignment" && (
         <div className="flex gap-1">
           {(["left", "center", "right"] as const).map((opt) => (
@@ -451,9 +231,7 @@ function PropertyInput({
               key={opt}
               onClick={() => onChange(opt)}
               className={`flex-1 rounded-lg border px-3 py-2 text-sm capitalize transition ${
-                value === opt
-                  ? "border-brand bg-brand-light text-brand-dark"
-                  : "border-brand-pale bg-white text-muted hover:border-brand/40"
+                value === opt ? "border-brand bg-brand-light text-brand-dark" : "border-brand-pale bg-white text-muted hover:border-brand/40"
               }`}
             >
               {opt}
@@ -466,9 +244,7 @@ function PropertyInput({
 }
 
 function prettify(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function normalizeHex(v: string): string {

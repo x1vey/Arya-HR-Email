@@ -10,13 +10,17 @@ import { renderTemplate, cloneTemplate } from "@/lib/blocks/render";
 import type { PaletteItem, LayoutPreset } from "@/lib/blocks/palette";
 import { checkSpam, type SpamResult } from "@/lib/email/spam-checker";
 import { htmlToPlainText } from "@/lib/email/plain-text";
+import type { CustomValue } from "@/lib/custom-values/types";
+import { buildCustomValueScope } from "@/lib/custom-values/types";
+import { loadCustomValues } from "@/lib/custom-values/store";
 import { PropertyPanel } from "./PropertyPanel";
 import { PreviewPane, type BlockAction, type CanvasKey } from "./PreviewPane";
 import { ElementsPanel } from "./ElementsPanel";
 import { TemplateGallery } from "./TemplateGallery";
-import { DataSourcePanel } from "./DataSourcePanel";
 import { AiGenerateModal } from "./AiGenerateModal";
 import { ImportHtmlModal } from "./ImportHtmlModal";
+import { CustomValuesModal } from "./CustomValuesModal";
+import { SettingsModal } from "./SettingsModal";
 
 type Tab = "build" | "templates";
 
@@ -89,7 +93,10 @@ export function BlockEditor() {
   const [toast, setToast] = useState<string | null>(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCustomValues, setShowCustomValues] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [emailSettings, setEmailSettings] = useState<EmailSettings>({ ...DEFAULT_EMAIL_SETTINGS });
+  const [customValues, setCustomValues] = useState<CustomValue[]>(() => loadCustomValues());
 
   const selectedRef = useRef(selectedBlockId);
   const presentRef = useRef(template);
@@ -104,11 +111,16 @@ export function BlockEditor() {
     [template.blocks, selectedBlockId]
   );
 
+  // Build combined variable scope: template variables + custom values
   const variableScope = useMemo(() => {
     const scope: Record<string, unknown> = {};
+    // Template variables (per-recipient merge tags)
     for (const [key, value] of Object.entries(variableValues)) setPath(scope, key, value);
+    // Custom values (global {{custom.*}})
+    const cvScope = buildCustomValueScope(customValues);
+    Object.assign(scope, cvScope);
     return scope;
-  }, [variableValues]);
+  }, [variableValues, customValues]);
 
   const renderedHtml = useMemo(
     () => renderTemplate(template, variableScope),
@@ -119,15 +131,16 @@ export function BlockEditor() {
   const [spamResult, setSpamResult] = useState<SpamResult | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => {
+      const hasUnsub = customValues.find((v) => v.key === "unsub_link");
       const result = checkSpam(renderedHtml, {
         subject: emailSettings.subject,
-        hasUnsubscribe: !!emailSettings.unsubscribe_url,
+        hasUnsubscribe: !!(hasUnsub && hasUnsub.value && hasUnsub.value !== "#unsubscribe" && hasUnsub.value !== "#"),
         hasPlainText: false,
       });
       setSpamResult(result);
     }, 500);
     return () => clearTimeout(timer);
-  }, [renderedHtml, emailSettings.subject, emailSettings.unsubscribe_url]);
+  }, [renderedHtml, emailSettings.subject, customValues]);
 
   const mutate = useCallback(
     (fn: (t: Template) => Template, coalesceKey?: string) => dispatch({ type: "mutate", fn, coalesceKey }),
@@ -184,8 +197,9 @@ export function BlockEditor() {
         return { ...t, blocks };
       });
       setSelectedBlockId(nb.id);
+      showToast(`Added ${item.label}`);
     },
-    [mutate]
+    [mutate, showToast]
   );
 
   const clickInsertIndex = useCallback(() => {
@@ -212,8 +226,9 @@ export function BlockEditor() {
         return { ...t, blocks };
       });
       setSelectedBlockId(newBlocks[0].id);
+      showToast(`Added ${preset.label}`);
     },
-    [mutate, clickInsertIndex]
+    [mutate, clickInsertIndex, showToast]
   );
 
   const duplicateBlock = useCallback(
@@ -407,8 +422,6 @@ export function BlockEditor() {
     [template, emailSettings, showToast]
   );
 
-  /** Save current template to localStorage and navigate to automations builder
-   *  with this template pre-selected. */
   const useInAutomation = useCallback(() => {
     const id = `tpl_editor_${Date.now()}`;
     const saved = { ...template, id, settings: emailSettings };
@@ -466,6 +479,31 @@ export function BlockEditor() {
             </HeaderIcon>
           </div>
 
+          {/* Custom Values */}
+          <button
+            onClick={() => setShowCustomValues(true)}
+            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-brand-light hover:text-brand"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+              <path d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            </svg>
+            Values
+          </button>
+
+          {/* Settings */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-brand-light hover:text-brand"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+            </svg>
+            Settings
+          </button>
+
+          <div className="mx-0.5 h-5 w-px bg-brand-pale" />
+
           <button onClick={() => setShowImportModal(true)} className="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition hover:bg-brand-light hover:text-brand">
             Import
           </button>
@@ -516,7 +554,7 @@ export function BlockEditor() {
               </div>
             ) : (
               <div className="flex flex-col">
-                {/* AI generate button — prominent at top */}
+                {/* AI generate button */}
                 <div className="border-b border-brand-pale p-3">
                   <button
                     onClick={() => setShowAiModal(true)}
@@ -527,27 +565,18 @@ export function BlockEditor() {
                     </svg>
                     <div>
                       <div className="text-sm font-semibold">Generate with AI</div>
-                      <div className="text-[11px] text-white/70">Describe your email</div>
+                      <div className="text-[11px] text-white/70">Design + copy studios</div>
                     </div>
                   </button>
                 </div>
 
                 {/* Elements */}
-                <div className="border-b border-brand-pale p-4">
+                <div className="p-4">
                   <ElementsPanel
                     onAdd={addBlock}
                     onAddLayout={addLayout}
                     onDragStart={startDrag}
                     onDragEnd={endDrag}
-                  />
-                </div>
-
-                {/* Data sources */}
-                <div className="p-4">
-                  <DataSourcePanel
-                    variables={template.variables}
-                    variableValues={variableValues}
-                    onVariableChange={updateVariable}
                   />
                 </div>
               </div>
@@ -576,13 +605,8 @@ export function BlockEditor() {
           <PropertyPanel
             block={selectedBlock}
             onChange={updateProp}
-            variables={template.variables}
-            variableValues={variableValues}
-            onVariableChange={updateVariable}
             onSaveTemplate={saveTemplate}
             templateName={template.name}
-            emailSettings={emailSettings}
-            onSettingsChange={updateSetting}
             spamResult={spamResult}
           />
         </aside>
@@ -591,6 +615,8 @@ export function BlockEditor() {
       {/* Modals */}
       <AiGenerateModal open={showAiModal} onClose={() => setShowAiModal(false)} onGenerated={loadAiTemplate} />
       <ImportHtmlModal open={showImportModal} onClose={() => setShowImportModal(false)} onImported={loadAiTemplate} />
+      <CustomValuesModal open={showCustomValues} onClose={() => setShowCustomValues(false)} onValuesChange={setCustomValues} />
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} settings={emailSettings} onChange={updateSetting} />
 
       {showFinalHtml && <CodeModal title="Final HTML" subtitle="What gets handed to the SMTP transport." code={renderedHtml} onClose={() => setShowFinalHtml(false)} />}
       {showPlainText && <CodeModal title="Plain text version" subtitle="Include this as the text/plain MIME part." code={htmlToPlainText(renderedHtml)} onClose={() => setShowPlainText(false)} />}

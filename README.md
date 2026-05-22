@@ -26,18 +26,18 @@ npm run automate     # run the automation engine demo in the terminal
   - `cart-abandonment.ts` — modern card design with faux Mac chrome (CSS custom properties, flexbox — modern email clients only).
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
 - **Canva-style email editor** at `/editor`:
-  - Unified **Build** panel — elements, layouts, data sources, and AI generation in one scrollable view; **Gallery** panel for template browsing
-  - **AI email generation — two studios** — generation is split into a **Design Studio** (describe the email → a top-tier layout is built) and a separate **Copy Studio** where a dedicated conversion copywriter rewrites every headline, paragraph and button while keeping your layout and merge tags untouched. Steer the copy with an optional tone/audience brief, regenerate for a different take, or use the design as-is. Choose from **Gemini**, **Groq**, or **OpenRouter** as AI provider; per-IP daily limit (25 generations/day, design + copy each count once). API key stored in browser or via env vars (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
-  - **Context files** — save reusable brand/voice notes (colors, company info, design inspiration) that are fed into *both* the design and copy passes so every AI email stays on-brand
-  - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas**: heading / text / button / image / callout / divider / spacer / **signature** / **social links**. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
-  - **Data sources** — CSV file upload with auto-parsing, Airtable connection, CRM integration (HubSpot, Salesforce, Pipedrive, custom). Field mapping editor matches source columns to template merge tags
+  - **Clean layout** — left panel has elements + layouts only (no data clutter); toolbar gives one-click access to **Custom Values**, **Settings**, **Import**, **HTML** export, and **Automate**
+  - **Custom Values (GHL-style)** — reusable named placeholders like `{{custom.company_name}}`, `{{custom.unsub_link}}`, `{{custom.sender_name}}`. Values can be text, URL, or image. System values (company, sender, links) are pre-created; users add their own freely. Company Details form auto-populates the company group. Unsubscribe link is a custom value — no manual URL field
+  - **Company Details** — dedicated Google-signature-style form (name, logo, address, website, phone). Fills in once, auto-populates `{{custom.company_*}}` across every email
+  - **AI email generation — two studios** — generation is split into a **Design Studio** (describe the email → a top-tier layout) and a separate **Copy Studio** where a dedicated conversion copywriter rewrites every headline, paragraph and button while keeping layout + merge tags untouched. Steer the copy with an optional tone/audience brief, regenerate for a different take, or use the design as-is. Choose from **Gemini**, **Groq**, or **OpenRouter**; per-IP daily limit (25/day). API key stored in browser or via env vars (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
+  - **Context files** — save reusable brand/voice notes that are fed into *both* the design and copy AI passes
+  - **Element library** — **click to add or drag onto the canvas**: heading / text / button / image / callout / divider / spacer / **signature** / **social links**. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
   - **Hover any section** for a Canva-style action toolbar (move / duplicate / delete) that follows the cursor; clicking selects, and the toolbar stays on the selected block
-  - **Double-click-to-edit text in place** — inline editing shows the raw value so merge tags like `{{employee.first_name}}` are preserved instead of baked in
-  - **Keyboard shortcuts + undo/redo**: ⌫ delete, ⌘/Ctrl+D duplicate, ⌘/Ctrl+Z / ⌘⇧Z undo-redo, ↑/↓ move, ⌘/Ctrl+C·V copy-paste, Esc deselect (shortcuts work even when focus is in the preview iframe, via key forwarding)
-  - **Import HTML** — paste an existing HTML email and AI converts it into an editable block tree, preserving the visual design (supports all 3 AI providers)
-  - **Automate button** — one click saves the current template and opens the automation builder with a pre-configured "Send email" step
-  - **Email settings** in the right panel — subject line, preheader, from name/email, reply-to, unsubscribe URL. Saved with the template
-  - **Deliverability score** — real-time spam-word scanner checks all text, punctuation, caps, text-to-image ratio, missing unsubscribe, etc. Shows a 0–100 score with per-issue warnings in the property panel and a badge in the header
+  - **Double-click-to-edit text in place** — inline editing shows the raw value so merge tags like `{{employee.first_name}}` and custom values like `{{custom.company_name}}` are preserved
+  - **Keyboard shortcuts + undo/redo**: Del delete, Ctrl+D duplicate, Ctrl+Z / Ctrl+Shift+Z undo-redo, arrows move, Ctrl+C/V copy-paste, Esc deselect
+  - **Import HTML** — paste an existing HTML email and AI converts it into an editable block tree (supports all 3 AI providers)
+  - **Email settings** — subject, preheader, from name/email, reply-to in a clean Settings modal (accessed from toolbar). Unsubscribe handled via custom values
+  - **Deliverability score** — real-time spam-word scanner in the property panel. 0-100 score with per-issue warnings + header badge
   - **Plain text view** — auto-generated text/plain version alongside View HTML, with copy button
   - Type-aware property inputs (text / longtext / color / image / link / alignment)
   - "View HTML" / "Plain text" modals with copy-to-clipboard
@@ -67,14 +67,16 @@ app/
   api/send-test/        mock send endpoint (logs + fake quota)
   api/generate-email/   AI email generation (Gemini / Groq / OpenRouter)
 components/
-  BlockEditor.tsx       main editor — unified Build + Gallery panels
+  BlockEditor.tsx       main editor — clean Build + Gallery panels, toolbar
   AiGenerateModal.tsx   two-step AI modal — Design Studio → Copy Studio
+  CustomValuesModal.tsx GHL-style custom values + company details
+  SettingsModal.tsx     email settings (subject, from, reply-to)
   ImportHtmlModal.tsx   Paste HTML → AI converts to editable blocks
   ElementsPanel.tsx     Elements panel — click-to-add block library
   DataSourcePanel.tsx   CSV / Airtable / CRM data source management
   TemplateGallery.tsx   Templates panel — visual template picker + AI entry
   PreviewPane.tsx       center — iframe preview, click-to-select + canvas toolbar
-  PropertyPanel.tsx     right — prop inputs for the selected block
+  PropertyPanel.tsx     right — block props + deliverability score
   automation/
     AutomationsApp.tsx  container — dashboard ↔ builder, template handoff
     AutomationsList.tsx dashboard of saved automations (create/open/dup/delete)
