@@ -17,6 +17,8 @@ import { noirDropTemplate } from "./noir-drop";
 import { auroraGlowTemplate } from "./aurora-glow";
 import { editorialLookbookTemplate } from "./editorial-lookbook";
 import { minimalLuxTemplate } from "./minimal-lux";
+import { streetHypeTemplate } from "./street-hype";
+import { botanicalCalmTemplate } from "./botanical-calm";
 import { blankTemplate } from "./blank";
 import type { Template } from "@/lib/blocks/types";
 
@@ -50,7 +52,9 @@ export const TEMPLATE_LIBRARY: Template[] = [
   noirDropTemplate,
   auroraGlowTemplate,
   editorialLookbookTemplate,
-  minimalLuxTemplate
+  minimalLuxTemplate,
+  streetHypeTemplate,
+  botanicalCalmTemplate
 ];
 
 export function getTemplateById(id: string): Template | undefined {
