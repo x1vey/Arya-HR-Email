@@ -250,6 +250,26 @@ export function BlockEditor() {
     [mutate]
   );
 
+  const reorderBlock = useCallback(
+    (fromId: string, targetId: string | null, position: "before" | "after") => {
+      mutate((t) => {
+        const fromIdx = t.blocks.findIndex((b) => b.id === fromId);
+        if (fromIdx === -1) return t;
+        const block = t.blocks[fromIdx];
+        const without = t.blocks.filter((b) => b.id !== fromId);
+        let insertAt = without.length;
+        if (targetId) {
+          const tIdx = without.findIndex((b) => b.id === targetId);
+          if (tIdx !== -1) insertAt = position === "before" ? tIdx : tIdx + 1;
+        }
+        const blocks = [...without];
+        blocks.splice(insertAt, 0, block);
+        return { ...t, blocks };
+      });
+    },
+    [mutate]
+  );
+
   const pasteAfterSelected = useCallback(() => {
     const src = clipboardRef.current;
     if (!src) return;
@@ -544,6 +564,7 @@ export function BlockEditor() {
             onSelectBlock={setSelectedBlockId}
             onAction={handleCanvasAction}
             onPaletteDrop={onPaletteDrop}
+            onBlockReorder={reorderBlock}
             onCanvasKey={runShortcut}
             onEditProp={updateProp}
             dropActive={!!draggingItem}

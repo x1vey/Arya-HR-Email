@@ -20,6 +20,7 @@ interface PreviewPaneProps {
   onAction: (action: BlockAction, blockId: string) => void;
   onPaletteDrop: (targetId: string | null, position: "before" | "after") => void;
   onCanvasKey: (k: CanvasKey) => void;
+  onBlockReorder: (fromId: string, targetId: string | null, position: "before" | "after") => void;
   onEditProp: (blockId: string, propKey: string, value: string) => void;
   dropActive: boolean;
 }
@@ -31,6 +32,7 @@ export function PreviewPane({
   onSelectBlock,
   onAction,
   onPaletteDrop,
+  onBlockReorder,
   onCanvasKey,
   onEditProp,
   dropActive
@@ -67,6 +69,8 @@ export function PreviewPane({
         onAction(d.action as BlockAction, d.blockId);
       } else if (d.type === "palette-drop") {
         onPaletteDrop(d.targetId ?? null, d.position === "before" ? "before" : "after");
+      } else if (d.type === "block-reorder") {
+        onBlockReorder(d.fromId ?? null, d.targetId ?? null, d.position === "before" ? "before" : "after");
       } else if (d.type === "key") {
         onCanvasKey({
           key: d.key,
@@ -81,7 +85,7 @@ export function PreviewPane({
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [onSelectBlock, onAction, onPaletteDrop, onCanvasKey, onEditProp]);
+  }, [onSelectBlock, onAction, onPaletteDrop, onBlockReorder, onCanvasKey, onEditProp]);
 
   return (
     <div className="flex h-full flex-col">
@@ -121,6 +125,7 @@ function decorateForSelection(
   var META = ${JSON.stringify(blocksMeta)};
   var RAW = ${JSON.stringify(editableValues)};
   var editing = null;
+  var draggingBlockId = null;
 
   function indexOf(id) { for (var i=0;i<META.length;i++){ if(META[i].id===id) return i; } return -1; }
 
@@ -141,7 +146,7 @@ function decorateForSelection(
     if (!el) return;
     var i = indexOf(id);
     var m = META[i] || { locked: false };
-    var h = '';
+    var h = '<button data-grip="1" draggable="true" title="Drag to reorder" style="all:unset;cursor:grab;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;font-size:16px;color:rgba(255,255,255,0.5);touch-action:none;">\\u283F</button>';
     h += makeBtn('\\u2191', 'Move up', 'up', i <= 0);
     h += makeBtn('\\u2193', 'Move down', 'down', i >= META.length - 1);
     h += makeBtn('\\u29C9', 'Duplicate', 'duplicate', false);
@@ -168,8 +173,27 @@ function decorateForSelection(
   bar.addEventListener('click', function(ev) {
     var b = ev.target.closest('button');
     if (!b || b.getAttribute('data-disabled') || !barFor) return;
+    if (b.getAttribute('data-grip')) return;
     ev.preventDefault(); ev.stopPropagation();
     window.parent.postMessage({ type: 'block-action', action: b.getAttribute('data-act'), blockId: barFor }, '*');
+  });
+  bar.addEventListener('dragstart', function(ev) {
+    var grip = ev.target.closest('[data-grip]');
+    if (!grip || !barFor) { ev.preventDefault(); return; }
+    draggingBlockId = barFor;
+    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer.setData('text/plain', barFor);
+    var el = document.querySelector('[data-block-id="' + barFor + '"]');
+    if (el) el.style.opacity = '0.35';
+    bar.style.display = 'none';
+  });
+  bar.addEventListener('dragend', function() {
+    if (draggingBlockId) {
+      var el = document.querySelector('[data-block-id="' + draggingBlockId + '"]');
+      if (el) el.style.opacity = '1';
+    }
+    draggingBlockId = null;
+    hideLine();
   });
 
   function blockFrom(node) {
@@ -204,7 +228,16 @@ function decorateForSelection(
   function onDrop(e) {
     e.preventDefault();
     hideLine();
-    window.parent.postMessage({ type: 'palette-drop', targetId: dropTarget, position: dropPos }, '*');
+    if (draggingBlockId) {
+      if (draggingBlockId !== dropTarget) {
+        window.parent.postMessage({ type: 'block-reorder', fromId: draggingBlockId, targetId: dropTarget, position: dropPos }, '*');
+      }
+      var el = document.querySelector('[data-block-id="' + draggingBlockId + '"]');
+      if (el) el.style.opacity = '1';
+      draggingBlockId = null;
+    } else {
+      window.parent.postMessage({ type: 'palette-drop', targetId: dropTarget, position: dropPos }, '*');
+    }
     dropTarget = null;
   }
 

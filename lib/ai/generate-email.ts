@@ -107,6 +107,20 @@ When the user gives a brief prompt, expand it intelligently:
 - "farewell" or "offboarding" → Warm goodbye email with well-wishes and transition info
 - Always default to professional-yet-warm HR tone unless told otherwise
 
+## Editor compatibility (CRITICAL)
+
+The generated template is loaded into a visual drag-and-drop editor. For blocks to work correctly:
+1. Each block's html_template MUST start with <tr> as its very first HTML tag and end with </tr>
+2. The <tr> must contain exactly ONE <td> as its direct child (with all content inside that <td>)
+3. Every visible text, color, URL, and image MUST be a prop with a {{prop_name}} placeholder
+4. Keep blocks self-contained — one visual section per block
+5. Max 8-10 props per block — split complex sections into simpler blocks
+6. Avoid more than 2 levels of nested tables
+7. Use these block types for best editor integration: "header_logo", "hero_banner", "body_text", "heading", "image_full", "image_centered", "cta_button", "callout", "divider", "spacer", "signature", "footer", "product_grid", "icon_row", "stats_row"
+8. First block = header/logo with locked: true; Last block = footer with locked: true
+9. Use "text" for short strings, "longtext" for paragraphs, "color" for hex colors, "image_url" for images, "link_url" for URLs, "alignment" for left/center/right
+10. Prop names must be simple lowercase with underscores: "title", "body_color", "button_url" — NOT "employee.first_name" (those are template variables, not props)
+
 ## Example block
 
 {
@@ -210,6 +224,78 @@ async function generateWithOpenRouter(prompt: string, apiKey: string): Promise<s
   return completion.choices[0]?.message?.content ?? "";
 }
 
+// ── Post-processing: fix common AI output issues ──
+
+const VALID_PROP_TYPES = new Set(["text", "longtext", "color", "image_url", "link_url", "alignment"]);
+
+function guessPropType(key: string, value: string): string {
+  const v = String(value).trim().toLowerCase();
+  if (v.startsWith("#") || v.startsWith("rgb") || /^[a-f0-9]{3,8}$/i.test(v)) return "color";
+  if (/^https?:\/\//.test(v) && /\.(jpg|jpeg|png|gif|webp|svg|ico)/i.test(v)) return "image_url";
+  if (/^https?:\/\//.test(v) || v === "#") return "link_url";
+  if (key.includes("color") || key.includes("bg") || key.includes("accent")) return "color";
+  if (key.includes("image") || key.includes("avatar") || key.includes("logo_url") || key.includes("photo")) return "image_url";
+  if (key.includes("url") || key.includes("link") || key.includes("href")) return "link_url";
+  if (key.includes("align")) return "alignment";
+  if (v.length > 100) return "longtext";
+  return "text";
+}
+
+function normalizeAiTemplate(t: Template): Template {
+  if (!Array.isArray(t.variables)) t.variables = [];
+  if (!Array.isArray(t.blocks)) t.blocks = [];
+  if (!t.name) t.name = "AI Generated Email";
+  if (!t.category) t.category = "hr";
+
+  const seenIds = new Set<string>();
+
+  for (const block of t.blocks) {
+    // Ensure unique ID
+    if (!block.id || seenIds.has(block.id)) {
+      block.id = `blk_${(block.type || "block").replace(/\s+/g, "_")}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+    seenIds.add(block.id);
+
+    if (!block.props) block.props = {};
+    if (!block.propTypes) block.propTypes = {};
+    if (!block.label) block.label = block.type || "Block";
+    if (!block.type) block.type = "custom";
+
+    // Fix invalid propType values
+    for (const [key, val] of Object.entries(block.propTypes)) {
+      if (!VALID_PROP_TYPES.has(val as string)) {
+        block.propTypes[key] = guessPropType(key, String(block.props[key] ?? "")) as typeof val;
+      }
+    }
+
+    // Add missing propTypes for existing props
+    for (const key of Object.keys(block.props)) {
+      if (!block.propTypes[key]) {
+        block.propTypes[key] = guessPropType(key, String(block.props[key])) as "text";
+      }
+    }
+
+    // Ensure html_template starts with <tr>
+    if (block.html_template) {
+      const trimmed = block.html_template.replace(/^\s+/, "");
+      if (!trimmed.startsWith("<tr")) {
+        block.html_template = `<tr><td style="padding:16px 32px;">${block.html_template}</td></tr>`;
+      }
+    } else {
+      // Block has no html_template — create a minimal one
+      block.html_template = `<tr><td style="padding:16px 32px;"><p style="margin:0;font-size:16px;color:#475569;">Block content</p></td></tr>`;
+    }
+  }
+
+  // Ensure first and last blocks are locked
+  if (t.blocks.length > 0) {
+    t.blocks[0].locked = true;
+    t.blocks[t.blocks.length - 1].locked = true;
+  }
+
+  return t;
+}
+
 // ── Shared validation + entry point ──
 
 export async function generateEmailTemplate(
@@ -244,19 +330,24 @@ export async function generateEmailTemplate(
     );
   }
 
+  // Normalize: fix common AI output issues before validation
+  parsed = normalizeAiTemplate(parsed);
+
   // Validate minimum structure
   if (!parsed.wrapper_html?.includes("{{__blocks__}}")) {
-    throw new Error("Generated template is missing the {{__blocks__}} token in wrapper_html");
-  }
-  if (!Array.isArray(parsed.blocks) || parsed.blocks.length === 0) {
-    throw new Error("Generated template has no blocks");
+    // Try to fix: wrap in a basic email shell
+    parsed.wrapper_html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Email</title></head>
+<body style="margin:0;padding:0;background:#F4F6ED;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F6ED;">
+<tr><td align="center" style="padding:40px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border-radius:12px;overflow:hidden;">
+{{__blocks__}}
+</table></td></tr></table></body></html>`;
   }
 
-  // Ensure all blocks have required fields
-  for (const block of parsed.blocks) {
-    if (!block.id || !block.html_template || !block.props || !block.propTypes) {
-      throw new Error(`Block "${block.id ?? "unknown"}" is missing required fields`);
-    }
+  if (!Array.isArray(parsed.blocks) || parsed.blocks.length === 0) {
+    throw new Error("Generated template has no blocks");
   }
 
   // Normalize: ensure id starts with tpl_ai_
