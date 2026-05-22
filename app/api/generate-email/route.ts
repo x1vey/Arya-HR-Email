@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { generateEmailTemplate, type AiProvider } from "@/lib/ai/generate-email";
+import {
+  generateEmailTemplate,
+  generateEmailCopy,
+  type AiProvider,
+} from "@/lib/ai/generate-email";
+import type { Template } from "@/lib/blocks/types";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-/** Per-account daily generation limit */
+/** Per-account daily generation limit (design + copy passes each count once) */
 const DAILY_LIMIT = 25;
+
+type GenMode = "design" | "copy";
 
 export async function POST(req: Request) {
   try {
@@ -28,20 +35,27 @@ export async function POST(req: Request) {
     }
 
     /* ── Parse body ── */
-    const { prompt, apiKey, provider, contextFiles } = (await req.json()) as {
+    const {
+      prompt,
+      apiKey,
+      provider,
+      contextFiles,
+      mode: rawMode,
+      template,
+      brief,
+    } = (await req.json()) as {
       prompt?: string;
       apiKey?: string;
       provider?: AiProvider;
       contextFiles?: { name: string; content: string }[];
+      mode?: GenMode;
+      template?: Template;
+      brief?: string;
     };
 
-    if (!prompt?.trim()) {
-      return NextResponse.json(
-        { error: "Prompt is required" },
-        { status: 400 }
-      );
-    }
+    const mode: GenMode = rawMode === "copy" ? "copy" : "design";
 
+    /* ── Resolve provider ── */
     const validProviders = ["gemini", "groq", "openrouter"] as const;
     const p: AiProvider = validProviders.includes(provider as AiProvider)
       ? (provider as AiProvider)
@@ -75,20 +89,48 @@ export async function POST(req: Request) {
       );
     }
 
-    /* ── Build full prompt with context files ── */
-    let fullPrompt = prompt.trim();
+    /* ── Build shared design-context block from context files ── */
+    const contextBlock =
+      contextFiles && contextFiles.length > 0
+        ? contextFiles.map((f) => `### ${f.name}\n${f.content}`).join("\n\n")
+        : "";
 
-    if (contextFiles && contextFiles.length > 0) {
-      const ctx = contextFiles
-        .map((f) => `### ${f.name}\n${f.content}`)
-        .join("\n\n");
-      fullPrompt = `## Design context (always follow these rules):\n${ctx}\n\n## Email request:\n${fullPrompt}`;
+    /* ── COPY pass ── */
+    if (mode === "copy") {
+      if (!template || !Array.isArray(template.blocks) || template.blocks.length === 0) {
+        return NextResponse.json(
+          { error: "A generated design is required before writing copy." },
+          { status: 400 }
+        );
+      }
+
+      let copyBrief = brief?.trim() ?? "";
+      if (contextBlock) {
+        copyBrief = `## Brand & voice context (always follow):\n${contextBlock}\n\n${copyBrief}`.trim();
+      }
+
+      const withCopy = await generateEmailCopy(template, copyBrief, key, p);
+
+      return NextResponse.json({
+        template: withCopy,
+        quota: { remaining: rl.remaining, limit: rl.limit },
+      });
     }
 
-    const template = await generateEmailTemplate(fullPrompt, key, p);
+    /* ── DESIGN pass ── */
+    if (!prompt?.trim()) {
+      return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+    }
+
+    let fullPrompt = prompt.trim();
+    if (contextBlock) {
+      fullPrompt = `## Design context (always follow these rules):\n${contextBlock}\n\n## Email request:\n${fullPrompt}`;
+    }
+
+    const generated = await generateEmailTemplate(fullPrompt, key, p);
 
     return NextResponse.json({
-      template,
+      template: generated,
       quota: { remaining: rl.remaining, limit: rl.limit },
     });
   } catch (err) {

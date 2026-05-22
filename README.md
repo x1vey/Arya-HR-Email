@@ -27,7 +27,8 @@ npm run automate     # run the automation engine demo in the terminal
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
 - **Canva-style email editor** at `/editor`:
   - Unified **Build** panel — elements, layouts, data sources, and AI generation in one scrollable view; **Gallery** panel for template browsing
-  - **AI email generation** — describe the email you want in plain English; choose from **Gemini**, **Groq**, or **OpenRouter** as AI provider. Prompt suggestions and Ctrl+Enter to generate. API key stored in browser or via env vars (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
+  - **AI email generation — two studios** — generation is split into a **Design Studio** (describe the email → a top-tier layout is built) and a separate **Copy Studio** where a dedicated conversion copywriter rewrites every headline, paragraph and button while keeping your layout and merge tags untouched. Steer the copy with an optional tone/audience brief, regenerate for a different take, or use the design as-is. Choose from **Gemini**, **Groq**, or **OpenRouter** as AI provider; per-IP daily limit (25 generations/day, design + copy each count once). API key stored in browser or via env vars (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
+  - **Context files** — save reusable brand/voice notes (colors, company info, design inspiration) that are fed into *both* the design and copy passes so every AI email stays on-brand
   - **Element library** (`lib/blocks/palette.ts`) — **click to add or drag onto the canvas**: heading / text / button / image / callout / divider / spacer / **signature** / **social links**. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
   - **Data sources** — CSV file upload with auto-parsing, Airtable connection, CRM integration (HubSpot, Salesforce, Pipedrive, custom). Field mapping editor matches source columns to template merge tags
   - **Hover any section** for a Canva-style action toolbar (move / duplicate / delete) that follows the cursor; clicking selects, and the toolbar stays on the selected block
@@ -67,7 +68,7 @@ app/
   api/generate-email/   AI email generation (Gemini / Groq / OpenRouter)
 components/
   BlockEditor.tsx       main editor — unified Build + Gallery panels
-  AiGenerateModal.tsx   AI prompt modal — describe email, pick provider
+  AiGenerateModal.tsx   two-step AI modal — Design Studio → Copy Studio
   ImportHtmlModal.tsx   Paste HTML → AI converts to editable blocks
   ElementsPanel.tsx     Elements panel — click-to-add block library
   DataSourcePanel.tsx   CSV / Airtable / CRM data source management
@@ -90,7 +91,7 @@ lib/
     substitute.ts       {{path.to.value}} placeholder replacement
     palette.ts          elements + layouts (signature, social links blocks)
   ai/
-    generate-email.ts   system prompt + multi-provider generation logic
+    generate-email.ts   design + copy passes (separate prompts), multi-provider
   data-sources/
     types.ts            DataSource model, CSV parser, field auto-mapping
   email/

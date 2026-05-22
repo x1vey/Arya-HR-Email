@@ -4,7 +4,40 @@ import type { Template } from "@/lib/blocks/types";
 
 export type AiProvider = "gemini" | "groq" | "openrouter";
 
-const SYSTEM_PROMPT = `You are an expert email designer for Arya, an HR email studio. You generate stunning, ready-to-send email templates as structured JSON. Users may give you just a single word like "birthday" or "welcome" — your job is to infer the full context (it's an HR email for employees) and produce a beautifully designed, complete template every time.
+/* ──────────────────────────────────────────────────────────────────────────
+ * Shared spam-safe copywriting rules (used by BOTH the design pass and the
+ * dedicated copy pass — the app has a built-in deliverability scorer).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const SPAM_RULES = `### Spam-safe copywriting (CRITICAL — the app has a built-in deliverability scorer):
+NEVER use these HIGH-RISK phrases (instant spam filter triggers):
+"act now", "buy now", "click here", "click now", "earn money", "free access", "free gift", "free trial", "get it now", "limited time", "no cost", "no obligation", "offer expires", "order now", "risk free", "sign up free", "take action now", "urgent", "winner", "you have been selected", "congratulations", "100% free", "act immediately", "don't delete", "don't miss out", "exclusive deal", "for free", "get paid", "great offer", "guarantee", "incredible deal", "no catch", "no fees", "no strings attached", "while supplies last"
+
+NEVER use these MEDIUM-RISK phrases:
+"be your own boss", "cash", "cheap", "double your", "fast cash", "financial freedom", "full refund", "gift card", "income from home", "instant", "lowest price", "money back", "no purchase necessary", "pure profit", "save big", "save money", "special promotion", "unbelievable", "unlimited", "work from home"
+
+AVOID accumulating these soft-trigger words (fine individually, but 3+ raises flags):
+"amazing", "bargain", "clearance", "drastically", "exclusive", "fantastic", "free", "hurry", "immediately", "last chance", "lifetime", "limited", "miracle", "offer", "only", "opportunity", "prize", "promotion", "reduced", "reminder", "sale", "special", "success", "trial"
+
+Additional spam avoidance rules:
+- Maximum 2 exclamation marks in the entire email — prefer periods and confident statements
+- NEVER use ALL CAPS words except brand names or acronyms (HR, CEO, etc.)
+- Never use repeated punctuation (!!, ??, !!!)
+- Write confident, professional copy — not hype. Instead of "Amazing offer!!!" write "Something worth your time."
+- Button text should be action-oriented but not pushy: "View details", "Learn more", "See the update" — not "BUY NOW!!!" or "CLICK HERE"
+- Keep text-to-image ratio healthy: every email needs real text content, not just images
+- Always include an unsubscribe link in the footer block`;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * DESIGN pass — builds the structure, layout and visual design of the email.
+ * It writes solid first-draft copy so the design always stands on its own,
+ * but the dedicated copy pass below is what elevates the words to conversion
+ * quality.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const DESIGN_SYSTEM_PROMPT = `You are an expert email designer for Arya, an HR email studio. You generate stunning, ready-to-send email templates as structured JSON. Users may give you just a single word like "birthday" or "welcome" — your job is to infer the full context (it's an HR email for employees) and produce a beautifully designed, complete template every time.
+
+This is the DESIGN pass. Your priority is layout, visual hierarchy, structure and styling. Write clear, professional first-draft copy for every text field — a separate world-class copywriter will refine the words afterwards, so focus your energy on making the email look like a premium product.
 
 ## Your design philosophy
 
@@ -26,24 +59,7 @@ Think like the lead email designer at a top-tier agency — Apple, Stripe, Airbn
 - Every email should feel complete and ready to send — not a skeleton
 - Match the tone to the context: warm for celebrations, crisp for announcements, exciting for launches
 
-### Spam-safe copywriting (CRITICAL — the app has a built-in deliverability scorer):
-NEVER use these HIGH-RISK phrases (instant spam filter triggers):
-"act now", "buy now", "click here", "click now", "earn money", "free access", "free gift", "free trial", "get it now", "limited time", "no cost", "no obligation", "offer expires", "order now", "risk free", "sign up free", "take action now", "urgent", "winner", "you have been selected", "congratulations", "100% free", "act immediately", "don't delete", "don't miss out", "exclusive deal", "for free", "get paid", "great offer", "guarantee", "incredible deal", "no catch", "no fees", "no strings attached", "while supplies last"
-
-NEVER use these MEDIUM-RISK phrases:
-"be your own boss", "cash", "cheap", "double your", "fast cash", "financial freedom", "full refund", "gift card", "income from home", "instant", "lowest price", "money back", "no purchase necessary", "pure profit", "save big", "save money", "special promotion", "unbelievable", "unlimited", "work from home"
-
-AVOID accumulating these soft-trigger words (fine individually, but 3+ raises flags):
-"amazing", "bargain", "clearance", "drastically", "exclusive", "fantastic", "free", "hurry", "immediately", "last chance", "lifetime", "limited", "miracle", "offer", "only", "opportunity", "prize", "promotion", "reduced", "reminder", "sale", "special", "success", "trial"
-
-Additional spam avoidance rules:
-- Maximum 2 exclamation marks in the entire email — prefer periods and confident statements
-- NEVER use ALL CAPS words except brand names or acronyms (HR, CEO, etc.)
-- Never use repeated punctuation (!!, ??, !!!)
-- Write confident, professional copy — not hype. Instead of "Amazing offer!!!" write "Something worth your time."
-- Button text should be action-oriented but not pushy: "View details", "Learn more", "See the update" — not "BUY NOW!!!" or "CLICK HERE"
-- Keep text-to-image ratio healthy: every email needs real text content, not just images
-- Always include an unsubscribe link in the footer block
+${SPAM_RULES}
 
 ### Premium touches:
 - Hero sections should feel like magazine covers — big type, supporting subtext, strong CTA
@@ -181,88 +197,142 @@ The generated template is loaded into a visual drag-and-drop editor. For blocks 
 
 Produce a complete, polished email every time — even from a single word. The result should look like it came from a professional design agency, not a template generator.`;
 
-// ── Gemini ──
+/* ──────────────────────────────────────────────────────────────────────────
+ * COPY pass — a dedicated, world-class HR/conversion copywriter that rewrites
+ * ONLY the text of an already-designed email. It never touches structure,
+ * HTML, colors, layout or images. This is what makes the copy feel hand-crafted
+ * and high-converting rather than auto-generated.
+ * ────────────────────────────────────────────────────────────────────────── */
 
-async function generateWithGemini(prompt: string, apiKey: string): Promise<string> {
+const COPY_SYSTEM_PROMPT = `You are Arya's senior conversion copywriter — the person brands hire when they need internal and HR emails that people actually open, read to the end, and act on. You have written for the people teams at the most admired companies in the world. Your copy is warm, human, specific, and quietly persuasive — never hypey, never corporate-bland.
+
+You are given the text fields of an already-designed email. Your only job is to REWRITE the words so they convert: clearer headlines, subheads that pull the reader down the page, body copy that is concrete and benefit-led, and calls-to-action that feel like the natural next step.
+
+## How to write each field
+- HEADLINES (short fields): make them specific and intriguing. Lead with the benefit or the human moment, not the logistics. Avoid generic openers like "Important update" or "Hello team".
+- SUBHEADS / EYEBROWS: set up the headline or add momentum. Keep them tight.
+- BODY (longer fields): one idea per paragraph, short sentences, concrete details. Speak to "you". Cut filler words. Make the reader feel something and know exactly what to do.
+- BUTTON / CTA labels: action-oriented and specific — "Confirm my enrollment", "See the new policy", "Read the full update". Never "Click here" or "Submit".
+- LABELS / CAPTIONS / FOOTER text: keep them functional and clean.
+
+## Hard rules
+- Keep every field roughly the SAME LENGTH as the original (headlines stay short, paragraphs stay paragraph-length). Copy must still fit the design.
+- PRESERVE every merge tag exactly as written — tokens like {{employee.first_name}}, {{company.name}}, {{event.date}} must appear unchanged. Never invent new tokens.
+- Match an HR context: professional, warm, inclusive, human. Default to this unless the brief says otherwise.
+- If brand/voice context is provided, follow it precisely (tone, sign-off, product names).
+- Do NOT add or remove fields. Do NOT change ids or keys. Do NOT output HTML. Return text only for each field.
+
+${SPAM_RULES}
+
+## Output format
+Return ONLY valid JSON (no markdown, no code fences) in exactly this shape:
+{ "fields": [ { "id": "<block id, unchanged>", "key": "<prop key, unchanged>", "text": "<your rewritten copy>" } ] }
+Include one entry for every field you were given, in the same order. Output nothing else.`;
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Generic provider callers — (system, user) → raw string.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+async function callGemini(
+  system: string,
+  user: string,
+  apiKey: string,
+  temperature: number
+): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
     model: "gemini-2.0-flash",
     generationConfig: {
       responseMimeType: "application/json",
-      temperature: 0.7,
+      temperature,
     },
   });
 
   const chat = model.startChat({
     history: [
-      { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+      { role: "user", parts: [{ text: system }] },
       {
         role: "model",
         parts: [
           {
-            text: "Understood. I will generate email templates as valid JSON matching the Template interface, with email-safe HTML, proper block structure, and editable props. Send me a description of the email you want.",
+            text: "Understood. I will respond with valid JSON only — no markdown, no code fences, no explanation.",
           },
         ],
       },
     ],
   });
 
-  const result = await chat.sendMessage(
-    `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`
-  );
-
+  const result = await chat.sendMessage(user);
   return result.response.text();
 }
 
-// ── Groq ──
-
-async function generateWithGroq(prompt: string, apiKey: string): Promise<string> {
-  const client = new OpenAI({
-    apiKey,
-    baseURL: "https://api.groq.com/openai/v1",
-  });
-
+async function callOpenAICompatible(
+  baseURL: string,
+  model: string,
+  system: string,
+  user: string,
+  apiKey: string,
+  temperature: number
+): Promise<string> {
+  const client = new OpenAI({ apiKey, baseURL });
   const completion = await client.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    temperature: 0.7,
+    model,
+    temperature,
     response_format: { type: "json_object" },
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`,
-      },
+      { role: "system", content: system },
+      { role: "user", content: user },
     ],
   });
-
   return completion.choices[0]?.message?.content ?? "";
 }
 
-// ── OpenRouter ──
-
-async function generateWithOpenRouter(prompt: string, apiKey: string): Promise<string> {
-  const client = new OpenAI({
-    apiKey,
-    baseURL: "https://openrouter.ai/api/v1",
-  });
-
-  const completion = await client.chat.completions.create({
-    model: "google/gemini-2.0-flash-001",
-    temperature: 0.7,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`,
-      },
-    ],
-  });
-
-  return completion.choices[0]?.message?.content ?? "";
+async function callProvider(
+  system: string,
+  user: string,
+  apiKey: string,
+  provider: AiProvider,
+  temperature: number
+): Promise<string> {
+  switch (provider) {
+    case "groq":
+      return callOpenAICompatible(
+        "https://api.groq.com/openai/v1",
+        "llama-3.3-70b-versatile",
+        system,
+        user,
+        apiKey,
+        temperature
+      );
+    case "openrouter":
+      return callOpenAICompatible(
+        "https://openrouter.ai/api/v1",
+        "google/gemini-2.0-flash-001",
+        system,
+        user,
+        apiKey,
+        temperature
+      );
+    default:
+      return callGemini(system, user, apiKey, temperature);
+  }
 }
 
-// ── Post-processing: fix common AI output issues ──
+function parseJson<T>(raw: string): T {
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    throw new Error(`AI returned invalid JSON. Raw response:\n${raw.slice(0, 500)}`);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Post-processing: fix common AI output issues.
+ * ────────────────────────────────────────────────────────────────────────── */
 
 const VALID_PROP_TYPES = new Set(["text", "longtext", "color", "image_url", "link_url", "alignment"]);
 
@@ -334,39 +404,24 @@ function normalizeAiTemplate(t: Template): Template {
   return t;
 }
 
-// ── Shared validation + entry point ──
+/* ──────────────────────────────────────────────────────────────────────────
+ * DESIGN pass — entry point.
+ * ────────────────────────────────────────────────────────────────────────── */
 
 export async function generateEmailTemplate(
   prompt: string,
   apiKey: string,
   provider: AiProvider = "gemini"
 ): Promise<Template> {
-  let raw: string;
-  switch (provider) {
-    case "groq":
-      raw = await generateWithGroq(prompt, apiKey);
-      break;
-    case "openrouter":
-      raw = await generateWithOpenRouter(prompt, apiKey);
-      break;
-    default:
-      raw = await generateWithGemini(prompt, apiKey);
-  }
+  const raw = await callProvider(
+    DESIGN_SYSTEM_PROMPT,
+    `Generate an email template for: ${prompt}\n\nReturn ONLY the JSON object — no markdown, no code fences, no explanation.`,
+    apiKey,
+    provider,
+    0.7
+  );
 
-  // Strip markdown fences if present (safety net)
-  const cleaned = raw
-    .replace(/^```(?:json)?\s*\n?/i, "")
-    .replace(/\n?```\s*$/i, "")
-    .trim();
-
-  let parsed: Template;
-  try {
-    parsed = JSON.parse(cleaned) as Template;
-  } catch {
-    throw new Error(
-      `AI returned invalid JSON. Raw response:\n${raw.slice(0, 500)}`
-    );
-  }
+  let parsed = parseJson<Template>(raw);
 
   // Normalize: fix common AI output issues before validation
   parsed = normalizeAiTemplate(parsed);
@@ -394,4 +449,104 @@ export async function generateEmailTemplate(
   }
 
   return parsed;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * COPY pass — rewrites only the text/longtext props of an existing template.
+ * Structure, HTML, colors, images and merge tags are left untouched.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+interface CopyField {
+  id: string;
+  key: string;
+  label: string;
+  type: "text" | "longtext";
+  text: string;
+}
+
+/** Pull every editable copy field (text + longtext props) out of a template. */
+function extractCopyFields(t: Template): CopyField[] {
+  const fields: CopyField[] = [];
+  for (const block of t.blocks ?? []) {
+    if (!block.props || !block.propTypes) continue;
+    for (const [key, pt] of Object.entries(block.propTypes)) {
+      if (pt !== "text" && pt !== "longtext") continue;
+      const value = String(block.props[key] ?? "");
+      if (!value.trim()) continue; // nothing to rewrite
+      fields.push({
+        id: block.id,
+        key,
+        label: `${block.label} · ${key}`,
+        type: pt,
+        text: value,
+      });
+    }
+  }
+  return fields;
+}
+
+/** Merge rewritten copy back into a fresh copy of the template. */
+function applyCopyFields(
+  t: Template,
+  rewritten: { id: string; key: string; text: string }[]
+): Template {
+  const map = new Map<string, string>();
+  for (const f of rewritten) {
+    if (f && typeof f.id === "string" && typeof f.key === "string" && typeof f.text === "string") {
+      map.set(`${f.id}:::${f.key}`, f.text);
+    }
+  }
+
+  const next: Template = JSON.parse(JSON.stringify(t));
+  for (const block of next.blocks) {
+    for (const key of Object.keys(block.props ?? {})) {
+      const replacement = map.get(`${block.id}:::${key}`);
+      if (typeof replacement === "string" && replacement.trim()) {
+        block.props[key] = replacement;
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * Run the dedicated copywriter pass over an existing template.
+ *
+ * @param template  The already-designed template (output of generateEmailTemplate)
+ * @param brief     Optional extra direction from the user (tone, audience, key message)
+ * @param apiKey    Provider API key
+ * @param provider  Which model to use
+ */
+export async function generateEmailCopy(
+  template: Template,
+  brief: string,
+  apiKey: string,
+  provider: AiProvider = "gemini"
+): Promise<Template> {
+  const fields = extractCopyFields(template);
+
+  // Nothing to rewrite — return the template unchanged.
+  if (fields.length === 0) return template;
+
+  const briefBlock = brief?.trim()
+    ? `## Copy brief from the user (follow this closely):\n${brief.trim()}\n\n`
+    : "";
+
+  const user = `${briefBlock}Rewrite the copy for the email "${template.name}" (category: ${template.category}).
+Here are the fields to rewrite. Each has an id, key, type (text = short, longtext = paragraph) and the current draft text:
+
+${JSON.stringify(
+    fields.map((f) => ({ id: f.id, key: f.key, type: f.type, text: f.text })),
+    null,
+    2
+  )}
+
+Return ONLY the JSON object { "fields": [ { "id", "key", "text" } ] } with one entry per field above, ids and keys unchanged.`;
+
+  const raw = await callProvider(COPY_SYSTEM_PROMPT, user, apiKey, provider, 0.85);
+
+  const parsed = parseJson<{ fields?: { id: string; key: string; text: string }[] }>(raw);
+  const rewritten = Array.isArray(parsed.fields) ? parsed.fields : [];
+
+  return applyCopyFields(template, rewritten);
 }

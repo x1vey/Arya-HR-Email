@@ -3,8 +3,8 @@ import Link from "next/link";
 const FEATURES = [
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`,
-    title: "AI generation",
-    desc: "Describe what you need, pick a provider (Gemini, Groq, OpenRouter), and get a fully editable email template in seconds.",
+    title: "Design + Copy studios",
+    desc: "Two AI passes: one designs a top-tier layout, a separate copywriter dials in high-converting words. Pick a provider (Gemini, Groq, OpenRouter) and get a fully editable email in seconds.",
   },
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
