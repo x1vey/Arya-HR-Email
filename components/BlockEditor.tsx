@@ -69,10 +69,30 @@ function historyReducer(state: HistoryState, action: HistoryAction): HistoryStat
   }
 }
 
-export function BlockEditor() {
+interface BlockEditorProps {
+  /** Pre-loaded template — from dashboard or create new */
+  initialTemplate?: Template;
+  /** Pre-loaded email settings */
+  initialSettings?: EmailSettings;
+  /** Saved-email ID being edited (for save-in-place) */
+  savedEmailId?: string | null;
+  /** Called to go back to dashboard */
+  onBack?: () => void;
+  /** Called when user saves — passes current template + settings */
+  onSave?: (name: string, template: Template, settings: EmailSettings) => void;
+}
+
+export function BlockEditor({
+  initialTemplate,
+  initialSettings,
+  savedEmailId,
+  onBack,
+  onSave,
+}: BlockEditorProps = {}) {
   const router = useRouter();
+  const startTemplate = initialTemplate ?? cloneTemplate(TEMPLATE_LIBRARY[0]);
   const [history, dispatch] = useReducer(historyReducer, undefined, () => ({
-    present: cloneTemplate(TEMPLATE_LIBRARY[0]),
+    present: startTemplate,
     past: [],
     future: [],
     coalesceKey: null,
@@ -80,10 +100,10 @@ export function BlockEditor() {
   const template = history.present;
 
   const [variableValues, setVariableValues] = useState<Record<string, string>>(() =>
-    buildInitialVariables(TEMPLATE_LIBRARY[0].variables)
+    buildInitialVariables(startTemplate.variables)
   );
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(
-    () => TEMPLATE_LIBRARY[0].blocks[0]?.id ?? null
+    () => startTemplate.blocks[0]?.id ?? null
   );
   const [showFinalHtml, setShowFinalHtml] = useState(false);
   const [showPlainText, setShowPlainText] = useState(false);
@@ -95,7 +115,7 @@ export function BlockEditor() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCustomValues, setShowCustomValues] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [emailSettings, setEmailSettings] = useState<EmailSettings>({ ...DEFAULT_EMAIL_SETTINGS });
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>(initialSettings ?? { ...DEFAULT_EMAIL_SETTINGS });
   const [customValues, setCustomValues] = useState<CustomValue[]>(() => loadCustomValues());
 
   const selectedRef = useRef(selectedBlockId);
@@ -412,6 +432,12 @@ export function BlockEditor() {
 
   const saveTemplate = useCallback(
     (name: string) => {
+      if (onSave) {
+        onSave(name, template, emailSettings);
+        showToast(`Saved "${name}"`);
+        return;
+      }
+      // Legacy fallback — save to old arya_saved_templates key
       const saved = { ...template, name, id: `saved_${Date.now()}`, settings: emailSettings };
       const key = "arya_saved_templates";
       const existing: Template[] = JSON.parse(localStorage.getItem(key) ?? "[]");
@@ -419,7 +445,7 @@ export function BlockEditor() {
       localStorage.setItem(key, JSON.stringify(existing));
       showToast(`Saved "${name}"`);
     },
-    [template, emailSettings, showToast]
+    [template, emailSettings, showToast, onSave]
   );
 
   const useInAutomation = useCallback(() => {
@@ -439,12 +465,21 @@ export function BlockEditor() {
       {/* ── Top toolbar ── */}
       <header className="flex items-center justify-between border-b border-brand-pale bg-white px-4 py-2">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5 rounded-lg px-1 py-1 transition hover:bg-brand-light">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-gradient text-xs font-bold text-white">A</div>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold text-ink">Arya</div>
-            </div>
-          </Link>
+          {onBack ? (
+            <button onClick={onBack} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted transition hover:bg-brand-light hover:text-ink">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Dashboard
+            </button>
+          ) : (
+            <Link href="/" className="flex items-center gap-2.5 rounded-lg px-1 py-1 transition hover:bg-brand-light">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-gradient text-xs font-bold text-white">A</div>
+              <div className="leading-tight">
+                <div className="text-sm font-semibold text-ink">Arya</div>
+              </div>
+            </Link>
+          )}
           <div className="mx-1 h-5 w-px bg-brand-pale" />
           <span className="rounded bg-brand-light px-2 py-0.5 text-[11px] font-medium text-brand-dark">
             {template.name}

@@ -25,10 +25,13 @@ npm run automate     # run the automation engine demo in the terminal
   - `onboarding-day1.ts` — clean professional design with a unique `checklist` block type.
   - `cart-abandonment.ts` — modern card design with faux Mac chrome (CSS custom properties, flexbox — modern email clients only).
   - `sales-nurture.ts` — long-form letter with simulated email-client "preview chrome", insight quote, symptom list, accent CTA card, signed P.S.
-- **Canva-style email editor** at `/editor`:
-  - **Clean layout** — left panel has elements + layouts only (no data clutter); toolbar gives one-click access to **Custom Values**, **Settings**, **Import**, **HTML** export, and **Automate**
-  - **Custom Values (GHL-style)** — reusable named placeholders like `{{custom.company_name}}`, `{{custom.unsub_link}}`, `{{custom.sender_name}}`. Values can be text, URL, or image. System values (company, sender, links) are pre-created; users add their own freely. Company Details form auto-populates the company group. Unsubscribe link is a custom value — no manual URL field
-  - **Company Details** — dedicated Google-signature-style form (name, logo, address, website, phone). Fills in once, auto-populates `{{custom.company_*}}` across every email
+- **Canva-style dashboard** at `/editor`:
+  - **Dashboard-first experience** — landing page shows saved emails in a grid, folders sidebar, search, create-new menu (blank or from template). Emails auto-save on creation
+  - **Folder system** — create, rename, delete folders. Move emails between folders. Unfiled view for uncategorized emails
+  - **Email card actions** — right-click menu: open, rename, duplicate, move to folder, delete
+- **Email editor** (opens from dashboard):
+  - **Clean layout** — left panel has elements + layouts only (no data clutter); toolbar gives one-click access to **Custom Values**, **Settings**, **Import**, **HTML** export, and **Automate**. Back button returns to dashboard
+  - **Custom Values (GHL-style)** — full-screen settings page with left sidebar navigation, table-based value layout (Name | Token | Value | Type columns), click-to-copy tokens, inline value editing. System values (company, sender, links) are pre-created; users create their own groups with **Add Group** and add values freely. Company Details is a dedicated form (name, logo, address, website, phone) that auto-populates `{{custom.company_*}}`. Unsubscribe link is a custom value — no manual URL field
   - **AI email generation — two studios** — generation is split into a **Design Studio** (describe the email → a top-tier layout) and a separate **Copy Studio** where a dedicated conversion copywriter rewrites every headline, paragraph and button while keeping layout + merge tags untouched. Steer the copy with an optional tone/audience brief, regenerate for a different take, or use the design as-is. Choose from **Gemini**, **Groq**, or **OpenRouter**; per-IP daily limit (25/day). API key stored in browser or via env vars (`GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`)
   - **Context files** — save reusable brand/voice notes that are fed into *both* the design and copy AI passes
   - **Element library** — **click to add or drag onto the canvas**: heading / text / button / image / callout / divider / spacer / **signature** / **social links**. **Layout presets** (title+body, image+text, hero+button, callout+button) drop several blocks at once
@@ -62,14 +65,15 @@ npm run automate     # run the automation engine demo in the terminal
 ```
 app/
   page.tsx              landing page (Soft Sage palette)
-  editor/page.tsx       editor entry — renders <BlockEditor/>
+  editor/page.tsx       dashboard ↔ editor state machine
   automations/page.tsx  automations entry — renders <AutomationsApp/>
   api/send-test/        mock send endpoint (logs + fake quota)
   api/generate-email/   AI email generation (Gemini / Groq / OpenRouter)
 components/
+  Dashboard.tsx         Canva-style home — saved emails grid, folders, search
   BlockEditor.tsx       main editor — clean Build + Gallery panels, toolbar
   AiGenerateModal.tsx   two-step AI modal — Design Studio → Copy Studio
-  CustomValuesModal.tsx GHL-style custom values + company details
+  CustomValuesModal.tsx GHL-style full-screen settings — table layout, groups
   SettingsModal.tsx     email settings (subject, from, reply-to)
   ImportHtmlModal.tsx   Paste HTML → AI converts to editable blocks
   ElementsPanel.tsx     Elements panel — click-to-add block library
@@ -99,6 +103,11 @@ lib/
   email/
     spam-checker.ts     Deliverability scanner — trigger words, caps, structure
     plain-text.ts       HTML → plain-text converter for multipart emails
+  saved-templates/
+    store.ts            SavedEmail + Folder interfaces, localStorage CRUD
+  custom-values/
+    types.ts            CustomValue, CompanyDetails, buildCustomValueScope
+    store.ts            localStorage persistence + system value merging
   automation/
     types.ts            Trigger, Step, Pipeline, Enrollment, duration helpers
     engine.ts           Clock + AutomationEngine (triggers, scheduler)

@@ -8,8 +8,8 @@ const FEATURES = [
   },
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
-    title: "15 pro templates",
-    desc: "Hand-crafted, email-safe HTML templates covering newsletters, onboarding, birthdays, policy updates, and more.",
+    title: "Dashboard + folders",
+    desc: "Canva-style home screen with saved emails, folders, search, and create-new flow. Pick a template or start blank — your work saves automatically.",
   },
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
@@ -18,8 +18,8 @@ const FEATURES = [
   },
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><path d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>`,
-    title: "Custom values",
-    desc: "GHL-style reusable placeholders for company details, sender info, and links. Set once, use everywhere. Unsubscribe is just a custom value.",
+    title: "Custom values (GHL-style)",
+    desc: "Full-screen settings page with table layout, user-created groups, click-to-copy tokens, company details form. Set once, use everywhere. Unsubscribe is just a custom value.",
   },
   {
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-6 w-6"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
