@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { Template } from "@/lib/blocks/types";
 import type { AiProvider } from "@/lib/ai/generate-email";
+import { ContextFilesManager, useContextFiles } from "./ContextFilesManager";
 
 interface AiGenerateModalProps {
   open: boolean;
@@ -54,10 +55,11 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<AiProvider>("gemini");
   const [apiKey, setApiKey] = useState("");
-  const [context, setContext] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [showContext, setShowContext] = useState(false);
+  const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { activeFiles } = useContextFiles();
 
   useEffect(() => {
     if (open) {
@@ -66,7 +68,6 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
       const p: AiProvider = saved === "groq" ? "groq" : saved === "openrouter" ? "openrouter" : "gemini";
       setProvider(p);
       setApiKey(localStorage.getItem(STORAGE_KEYS[p]) ?? "");
-      setContext(localStorage.getItem("arya_ai_context") ?? "");
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [open]);
@@ -89,22 +90,16 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
     if (apiKey.trim()) {
       localStorage.setItem(STORAGE_KEYS[provider], apiKey.trim());
     }
-    if (context.trim()) {
-      localStorage.setItem("arya_ai_context", context.trim());
-    }
-
-    const fullPrompt = context.trim()
-      ? `## Brand & company context (always follow these rules):\n${context.trim()}\n\n## Email request:\n${prompt.trim()}`
-      : prompt.trim();
 
     try {
       const res = await fetch("/api/generate-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: fullPrompt,
+          prompt: prompt.trim(),
           provider,
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+          contextFiles: activeFiles.map((f) => ({ name: f.name, content: f.content })),
         }),
       });
 
@@ -114,6 +109,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
         throw new Error(data.error || `Request failed (${res.status})`);
       }
 
+      if (data.quota) setQuota(data.quota);
       onGenerated(data.template);
       setPrompt("");
       onClose();
@@ -206,7 +202,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
             </div>
           </div>
 
-          {/* Context / brand guidelines */}
+          {/* Context files — brand & design references */}
           <div className="flex flex-col gap-1.5">
             <button
               onClick={() => setShowContext(!showContext)}
@@ -221,28 +217,14 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
               >
                 <path d="M9 18l6-6-6-6" />
               </svg>
-              Context & guidelines
-              {context.trim() && (
+              Context files
+              {activeFiles.length > 0 && (
                 <span className="ml-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[9px] font-semibold normal-case text-green-600">
-                  Active
+                  {activeFiles.length} active
                 </span>
               )}
             </button>
-            {showContext && (
-              <div className="flex flex-col gap-1">
-                <textarea
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                  placeholder={`e.g.\n- Company: Acme Corp, primary color #2563EB, logo at https://...\n- Tone: warm, professional, never salesy\n- Always include the company address in the footer\n- Sign off as "The People Team"`}
-                  rows={5}
-                  disabled={loading}
-                  className="w-full resize-y rounded-xl border border-brand-pale bg-canvas px-4 py-3 text-xs leading-relaxed text-ink placeholder:text-muted/60 focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
-                />
-                <p className="text-[10px] text-muted">
-                  Brand colors, tone, company name, logo URL, sign-off rules — anything the AI should always follow. Saved in your browser.
-                </p>
-              </div>
-            )}
+            {showContext && <ContextFilesManager disabled={loading} />}
           </div>
 
           {/* Provider + API key */}
@@ -319,7 +301,15 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-brand-pale px-6 py-4">
+        <div className="flex items-center justify-between border-t border-brand-pale px-6 py-4">
+          {quota ? (
+            <span className={`text-[11px] font-medium ${quota.remaining <= 3 ? "text-amber-600" : "text-muted"}`}>
+              {quota.remaining}/{quota.limit} generations left today
+            </span>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-3">
           <button
             onClick={onClose}
             disabled={loading}
@@ -352,6 +342,7 @@ export function AiGenerateModal({ open, onClose, onGenerated }: AiGenerateModalP
               </>
             )}
           </button>
+          </div>
         </div>
       </div>
     </div>
