@@ -17,6 +17,7 @@ import {
   renameFolder,
   deleteFolder,
 } from "@/lib/saved-templates/store";
+import { AiGenerateModal } from "./AiGenerateModal";
 
 /* ── Props ── */
 
@@ -30,7 +31,6 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [showNewMenu, setShowNewMenu] = useState(false);
-  const [showTemplateChooser, setShowTemplateChooser] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -40,6 +40,8 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
   const [renameFolderValue, setRenameFolderValue] = useState("");
   const [moveMenuId, setMoveMenuId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
 
   const reload = useCallback(() => {
     setEmails(loadEmails());
@@ -74,6 +76,12 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
 
   const unfiledCount = useMemo(() => emails.filter((e) => !e.folderId).length, [emails]);
 
+  // Last accessed email (most recently updated)
+  const lastAccessed = useMemo(() => {
+    if (emails.length === 0) return null;
+    return [...emails].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  }, [emails]);
+
   /* ── Actions ── */
 
   const handleCreateBlank = () => {
@@ -83,8 +91,11 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
 
   const handleCreateFromTemplate = (t: Template) => {
     onCreateNew(cloneTemplate(t));
-    setShowTemplateChooser(false);
     setShowNewMenu(false);
+  };
+
+  const handleAiGenerated = (t: Template) => {
+    onCreateNew(t);
   };
 
   const handleDuplicate = (id: string) => {
@@ -147,6 +158,9 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
     if (activeFolderId === id) setActiveFolderId(null);
     reload();
   };
+
+  // Templates to show inline (first 6 unless expanded)
+  const inlineTemplates = showAllTemplates ? TEMPLATE_LIBRARY : TEMPLATE_LIBRARY.slice(0, 6);
 
   return (
     <div className="flex h-screen flex-col bg-canvas">
@@ -212,7 +226,25 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
                   </div>
                 </button>
                 <button
-                  onClick={() => { setShowTemplateChooser(true); setShowNewMenu(false); }}
+                  onClick={() => { setShowAiModal(true); setShowNewMenu(false); }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-ink transition hover:bg-brand-light"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-brand-dark">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4 text-white">
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-medium">Generate with AI</div>
+                    <div className="text-[11px] text-muted">Design + copy studios</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNewMenu(false);
+                    // Scroll to templates section
+                    document.getElementById("browse-templates")?.scrollIntoView({ behavior: "smooth" });
+                  }}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-ink transition hover:bg-brand-light"
                 >
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas">
@@ -236,7 +268,7 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Sidebar — folders ── */}
-        <aside className="flex w-56 flex-col border-r border-brand-pale bg-white">
+        <aside className="flex w-56 shrink-0 flex-col border-r border-brand-pale bg-white">
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">Folders</span>
             <button
@@ -319,7 +351,6 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
                       <span className="ml-auto text-[11px] text-muted">{count}</span>
                     </button>
                   )}
-                  {/* Folder actions */}
                   {renamingFolderId !== f.id && (
                     <div className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
                       <button
@@ -346,7 +377,6 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
               );
             })}
 
-            {/* New folder input */}
             {showNewFolder && (
               <div className="mt-1 flex items-center gap-1 px-1">
                 <input
@@ -367,111 +397,206 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
         </aside>
 
         {/* ── Main content ── */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {/* Section label */}
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-ink">
-              {activeFolderId === null
-                ? "All emails"
-                : activeFolderId === "__unfiled__"
-                ? "Unfiled"
-                : folders.find((f) => f.id === activeFolderId)?.name ?? "Folder"}
-            </h2>
-            <span className="text-xs text-muted">
-              {visibleEmails.length} email{visibleEmails.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-
-          {visibleEmails.length === 0 ? (
-            /* Empty state */
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-light">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-7 w-7 text-brand">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M22 7l-10 6L2 7" />
-                </svg>
-              </div>
-              <h3 className="mt-4 text-base font-semibold text-ink">
-                {searchQuery ? "No results" : "No emails yet"}
-              </h3>
-              <p className="mt-1.5 max-w-sm text-sm text-muted">
-                {searchQuery
-                  ? `No emails matching "${searchQuery}"`
-                  : "Create your first email from a template or start from scratch."}
-              </p>
-              {!searchQuery && (
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-5xl px-6 py-6">
+            {/* ── Hero: Last accessed OR Start building ── */}
+            {lastAccessed ? (
+              <div className="mb-8">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Continue where you left off</h2>
                 <button
-                  onClick={() => setShowNewMenu(true)}
-                  className="mt-5 rounded-xl bg-brand-gradient px-6 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:opacity-90"
+                  onClick={() => onOpenEmail(lastAccessed)}
+                  className="flex w-full items-center gap-5 rounded-2xl border border-brand-pale bg-white p-4 text-left transition hover:border-brand/30 hover:shadow-panel"
                 >
-                  Create your first email
-                </button>
-              )}
-            </div>
-          ) : (
-            /* Email cards grid */
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {visibleEmails.map((email) => (
-                <div
-                  key={email.id}
-                  className="group relative flex cursor-pointer flex-col rounded-xl border border-brand-pale bg-white transition hover:border-brand/30 hover:shadow-panel"
-                  onClick={() => {
-                    if (renamingId === email.id) return;
-                    onOpenEmail(email);
-                  }}
-                >
-                  {/* Preview thumbnail */}
-                  <div className="flex h-36 items-center justify-center overflow-hidden rounded-t-xl bg-canvas p-3">
-                    <div className="h-full w-full rounded-md border border-brand-pale bg-white shadow-sm" />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex flex-col gap-1 px-3.5 py-3">
-                    {renamingId === email.id ? (
-                      <input
-                        autoFocus
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onBlur={() => handleRenameFinish(email.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleRenameFinish(email.id);
-                          if (e.key === "Escape") setRenamingId(null);
-                        }}
-                        className="rounded border border-brand px-1.5 py-0.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand/20"
-                      />
-                    ) : (
-                      <h4 className="truncate text-sm font-medium text-ink">{email.name}</h4>
-                    )}
-                    <div className="flex items-center gap-2 text-[11px] text-muted">
-                      <span>{formatDate(email.updatedAt)}</span>
-                      {email.folderId && (
-                        <>
-                          <span className="text-brand-pale">&middot;</span>
-                          <span className="truncate">{folders.find((f) => f.id === email.folderId)?.name}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Context menu trigger */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setContextMenu({ id: email.id, x: e.clientX, y: e.clientY });
-                    }}
-                    className="absolute right-2 top-2 hidden rounded-md bg-white/90 p-1 shadow-sm backdrop-blur-sm transition group-hover:flex hover:bg-brand-light"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-muted">
-                      <circle cx="12" cy="5" r="1" />
-                      <circle cx="12" cy="12" r="1" />
-                      <circle cx="12" cy="19" r="1" />
+                  <div className="flex h-20 w-32 shrink-0 items-center justify-center rounded-xl bg-canvas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-8 w-8 text-brand/40">
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="M22 7l-10 6L2 7" />
                     </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-base font-semibold text-ink">{lastAccessed.name}</h3>
+                    <p className="mt-0.5 text-xs text-muted">
+                      Last edited {formatDate(lastAccessed.updatedAt)}
+                      {lastAccessed.folderId && (
+                        <> &middot; {folders.find((f) => f.id === lastAccessed.folderId)?.name}</>
+                      )}
+                    </p>
+                    <p className="mt-1.5 text-xs text-brand font-medium">Click to continue editing &rarr;</p>
+                  </div>
+                </button>
+              </div>
+            ) : (
+              <div className="mb-8 rounded-2xl border border-brand-pale bg-white p-8 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-light">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-7 w-7 text-brand">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M22 7l-10 6L2 7" />
+                  </svg>
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-ink">Start building now</h3>
+                <p className="mx-auto mt-1.5 max-w-md text-sm text-muted">
+                  Create a polished email in seconds. Start from scratch, pick a template, or let AI design it for you.
+                </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={handleCreateBlank}
+                    className="rounded-xl bg-brand-gradient px-6 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:opacity-90"
+                  >
+                    Blank email
+                  </button>
+                  <button
+                    onClick={() => setShowAiModal(true)}
+                    className="flex items-center gap-2 rounded-xl border border-brand-pale bg-white px-6 py-2.5 text-sm font-semibold text-ink shadow-soft transition hover:border-brand/40"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-brand">
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                    Generate with AI
                   </button>
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* ── AI Generate cards ── */}
+            <div className="mb-8">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Create with AI</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowAiModal(true)}
+                  className="group flex items-center gap-4 rounded-xl border border-brand-pale bg-white p-4 text-left transition hover:border-brand/30 hover:shadow-panel"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-dark text-white transition group-hover:scale-105">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5">
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-ink">Design Studio</div>
+                    <div className="text-[11px] text-muted">Describe your email, AI builds the layout</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setShowAiModal(true)}
+                  className="group flex items-center gap-4 rounded-xl border border-brand-pale bg-white p-4 text-left transition hover:border-brand/30 hover:shadow-panel"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-violet-700 text-white transition group-hover:scale-105">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5">
+                      <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-ink">Copy Studio</div>
+                    <div className="text-[11px] text-muted">AI rewrites your copy for high conversions</div>
+                  </div>
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* ── Your emails ── */}
+            {visibleEmails.length > 0 && (
+              <div className="mb-8">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                    {activeFolderId === null
+                      ? "Your emails"
+                      : activeFolderId === "__unfiled__"
+                      ? "Unfiled"
+                      : folders.find((f) => f.id === activeFolderId)?.name ?? "Folder"}
+                  </h2>
+                  <span className="text-[11px] text-muted">
+                    {visibleEmails.length} email{visibleEmails.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {visibleEmails.map((email) => (
+                    <div
+                      key={email.id}
+                      className="group relative flex cursor-pointer flex-col rounded-xl border border-brand-pale bg-white transition hover:border-brand/30 hover:shadow-panel"
+                      onClick={() => {
+                        if (renamingId === email.id) return;
+                        onOpenEmail(email);
+                      }}
+                    >
+                      <div className="flex h-32 items-center justify-center overflow-hidden rounded-t-xl bg-canvas p-3">
+                        <div className="h-full w-full rounded-md border border-brand-pale bg-white shadow-sm" />
+                      </div>
+                      <div className="flex flex-col gap-1 px-3.5 py-3">
+                        {renamingId === email.id ? (
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={() => handleRenameFinish(email.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRenameFinish(email.id);
+                              if (e.key === "Escape") setRenamingId(null);
+                            }}
+                            className="rounded border border-brand px-1.5 py-0.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand/20"
+                          />
+                        ) : (
+                          <h4 className="truncate text-sm font-medium text-ink">{email.name}</h4>
+                        )}
+                        <div className="flex items-center gap-2 text-[11px] text-muted">
+                          <span>{formatDate(email.updatedAt)}</span>
+                          {email.folderId && (
+                            <>
+                              <span className="text-brand-pale">&middot;</span>
+                              <span className="truncate">{folders.find((f) => f.id === email.folderId)?.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setContextMenu({ id: email.id, x: e.clientX, y: e.clientY });
+                        }}
+                        className="absolute right-2 top-2 hidden rounded-md bg-white/90 p-1 shadow-sm backdrop-blur-sm transition group-hover:flex hover:bg-brand-light"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-muted">
+                          <circle cx="12" cy="5" r="1" />
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="12" cy="19" r="1" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Browse templates ── */}
+            <div className="mb-8" id="browse-templates">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Browse templates</h2>
+                <button
+                  onClick={() => setShowAllTemplates(!showAllTemplates)}
+                  className="text-xs font-medium text-brand transition hover:text-brand-dark"
+                >
+                  {showAllTemplates ? "Show less" : `View all ${TEMPLATE_LIBRARY.length}`}
+                </button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {inlineTemplates.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleCreateFromTemplate(t)}
+                    className="group flex flex-col rounded-xl border border-brand-pale bg-white p-3 text-left transition hover:border-brand/30 hover:shadow-panel"
+                  >
+                    <div className="mb-2 flex h-20 items-center justify-center rounded-lg bg-canvas transition group-hover:bg-brand-light/50">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-6 w-6 text-muted transition group-hover:text-brand">
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <path d="M22 7l-10 6L2 7" />
+                      </svg>
+                    </div>
+                    <div className="text-sm font-medium text-ink">{t.name}</div>
+                    <div className="text-[11px] text-muted">{t.category} &middot; {t.blocks.length} blocks</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </main>
       </div>
 
@@ -501,7 +626,6 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
             label="Duplicate"
             onClick={() => handleDuplicate(contextMenu.id)}
           />
-          {/* Move to folder */}
           <div className="relative">
             <CtxBtn
               label="Move to..."
@@ -536,53 +660,8 @@ export function Dashboard({ onOpenEmail, onCreateNew }: DashboardProps) {
         </div>
       )}
 
-      {/* ── Template chooser modal ── */}
-      {showTemplateChooser && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
-          onClick={() => setShowTemplateChooser(false)}
-        >
-          <div
-            className="flex max-h-[80vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-float"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-brand-pale px-6 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-ink">Choose a template</h3>
-                <p className="text-xs text-muted">{TEMPLATE_LIBRARY.length} templates available</p>
-              </div>
-              <button
-                onClick={() => setShowTemplateChooser(false)}
-                className="rounded-lg p-1.5 text-muted transition hover:bg-brand-light hover:text-ink"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {TEMPLATE_LIBRARY.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => handleCreateFromTemplate(t)}
-                    className="flex flex-col rounded-xl border border-brand-pale bg-white p-3 text-left transition hover:border-brand/30 hover:shadow-panel"
-                  >
-                    <div className="mb-2 flex h-20 items-center justify-center rounded-lg bg-canvas">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-6 w-6 text-muted">
-                        <rect x="2" y="4" width="20" height="16" rx="2" />
-                        <path d="M22 7l-10 6L2 7" />
-                      </svg>
-                    </div>
-                    <div className="text-sm font-medium text-ink">{t.name}</div>
-                    <div className="text-[11px] text-muted">{t.category} &middot; {t.blocks.length} blocks</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── AI Modal ── */}
+      <AiGenerateModal open={showAiModal} onClose={() => setShowAiModal(false)} onGenerated={handleAiGenerated} />
 
       {/* Click-away for new menu */}
       {showNewMenu && (
